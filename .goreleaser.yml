@@ -10,6 +10,7 @@ builds:
   goos:
     - linux
     - darwin
+    - windows
   goarch:
     - amd64
   mod_timestamp: '{{ .CommitTimestamp }}'
@@ -33,5 +34,8 @@ archives:
     format: tar.gz
     replacements:
         darwin: macOS
+    format_overrides:
+        - goos: windows
+          format: zip
 signs:
   - artifacts: checksum
