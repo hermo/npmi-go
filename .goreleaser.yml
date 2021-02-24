@@ -1,0 +1,37 @@
+before:
+  hooks:
+    - go mod download
+builds:
+- id: npmi
+  binary: npmi
+  main: ./cmd/npmi/main.go
+  env:
+    - CGO_ENABLED=0
+  goos:
+    - linux
+    - darwin
+  goarch:
+    - amd64
+  mod_timestamp: '{{ .CommitTimestamp }}'
+  flags:
+    - -trimpath
+  ldflags:
+    - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{ .CommitDate }}
+checksum:
+  name_template: '{{ .ProjectName }}_checksums.txt'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
+    - Merge pull request
+    - Merge branch
+    - go mod tidy
+archives:
+  - id: tgz
+    format: tar.gz
+    replacements:
+        darwin: macOS
+signs:
+  - artifacts: checksum
