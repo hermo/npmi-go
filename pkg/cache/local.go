@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 )
@@ -56,12 +57,20 @@ func (cache *LocalCache) Has(key string) bool {
 	return isFile(cache.joinPath(key))
 }
 
-// GetReader fetches a handle to a item in the cache for reading
-func (cache *LocalCache) GetReader(key string) (*os.File, error) {
+// Get fetches something from the cache
+func (cache *LocalCache) Get(key string) (io.Reader, error) {
 	return os.Open(cache.joinPath(key))
 }
 
-// GetWriter fetches a handle to an item in the cache for writing
-func (cache *LocalCache) GetWriter(key string) (*os.File, error) {
-	return os.Create(cache.joinPath(key))
+// Put stores something in the cache
+func (cache *LocalCache) Put(key string, reader io.Reader) error {
+	f, err := os.Create(cache.joinPath(key))
+	if err != nil {
+		return nil
+	}
+	_, err = io.Copy(f, reader)
+	if err != nil {
+		return err
+	}
+	return nil
 }
