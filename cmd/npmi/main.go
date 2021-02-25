@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -28,22 +29,25 @@ func main() {
 	fmt.Printf("Hash: %s\n", hash)
 
 	if options.UseLocalCache {
-
 		cache, err := cache.NewLocalCache(options.LocalCache.Dir)
 		if err != nil {
 			log.Fatalf("Can't use local cache: %v", err)
 		}
 
-		if !options.Force && cache.Has(hash) {
-			fmt.Println("HIT, contents follow:")
+		hit := cache.Has(hash)
+		if hit {
+			fmt.Println("Local HIT, contents follow:")
 			f, err := cache.GetReader(hash)
 			if err != nil {
 				log.Fatal(err)
 			}
 			defer f.Close()
 			io.Copy(os.Stdout, f)
-		} else {
-			fmt.Println("MISS, caching content")
+			fmt.Println("")
+		}
+
+		if options.Force || !hit {
+			fmt.Println("Local MISS, caching content")
 			f, err := cache.GetWriter(hash)
 			if err != nil {
 				log.Fatal(err)
@@ -51,6 +55,42 @@ func main() {
 			defer f.Close()
 			t := time.Now()
 			f.Write([]byte(t.Format(time.UnixDate)))
+		}
+	}
+
+	if options.UseMinioCache {
+		cache := cache.NewMinioCache()
+		err := cache.Dial(options.MinioCache.Endpoint, options.MinioCache.AccessKeyID, options.MinioCache.SecretAccessKey, options.MinioCache.UseTLS)
+		if err != nil {
+			log.Fatal(err)
+		}
+		hit, err := cache.Has(hash)
+		if err != nil {
+			log.Fatalf("Minio Cache error: %#v", err)
+		}
+		if hit {
+			fmt.Println("Minio HIT, contents follow: ")
+			f, err := cache.Get(hash)
+			if err != nil {
+				log.Fatal(err)
+			}
+			io.Copy(os.Stdout, f)
+			fmt.Println("")
+		}
+
+		if options.Force || !hit {
+			fmt.Println("Minio MISS")
+			t := time.Now()
+
+			var buf bytes.Buffer
+
+			buf.Write([]byte(t.Format(time.UnixDate)))
+
+			err := cache.Put(hash, &buf)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("Minio cache updated")
 		}
 	}
 
