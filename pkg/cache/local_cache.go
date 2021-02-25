@@ -37,6 +37,9 @@ func isFile(path string) bool {
 
 // NewLocalCache creates a new LocalCache
 func NewLocalCache(dir string) (*LocalCache, error) {
+	if dir == "" {
+		return nil, fmt.Errorf("No cache directory given")
+	}
 	if !isExistingDir(dir) {
 		return nil, fmt.Errorf("%s is not a valid directory", dir)
 	}
