@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/hermo/npmi-go/pkg/archive"
 	"github.com/hermo/npmi-go/pkg/cache"
 	"github.com/hermo/npmi-go/pkg/npmi"
 )
@@ -28,6 +29,11 @@ func main() {
 
 	fmt.Printf("Hash: %s\n", hash)
 
+	_, err = archive.CompressModules()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	if options.UseLocalCache {
 		cache, err := cache.NewLocalCache(options.LocalCache.Dir)
 		if err != nil {
@@ -37,24 +43,25 @@ func main() {
 		hit := cache.Has(hash)
 		if hit {
 			fmt.Println("Local HIT, contents follow:")
-			f, err := cache.GetReader(hash)
+			f, err := cache.Get(hash)
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer f.Close()
 			io.Copy(os.Stdout, f)
 			fmt.Println("")
 		}
 
 		if options.Force || !hit {
 			fmt.Println("Local MISS, caching content")
-			f, err := cache.GetWriter(hash)
+			var buf bytes.Buffer
+
+			t := time.Now()
+			buf.Write([]byte(t.Format(time.UnixDate)))
+
+			err := cache.Put(hash, &buf)
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer f.Close()
-			t := time.Now()
-			f.Write([]byte(t.Format(time.UnixDate)))
 		}
 	}
 
@@ -93,5 +100,4 @@ func main() {
 			fmt.Println("Minio cache updated")
 		}
 	}
-
 }
