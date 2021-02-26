@@ -25,19 +25,19 @@ func isExistingDir(path string) bool {
 }
 
 // isFile determines if a given path exists and is a file
-func isFile(path string) bool {
+func isFile(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false
+			return false, nil
 		}
-		panic(err)
+		return false, err
 	}
-	return !info.IsDir()
+	return !info.IsDir(), nil
 }
 
 // NewLocalCache creates a new LocalCache
-func NewLocalCache(dir string) (*LocalCache, error) {
+func NewLocalCache(dir string) (Cacher, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("No cache directory given")
 	}
@@ -53,7 +53,7 @@ func (cache *LocalCache) joinPath(key string) string {
 }
 
 // Has indicates whether a LocalCache contains a given key or not
-func (cache *LocalCache) Has(key string) bool {
+func (cache *LocalCache) Has(key string) (bool, error) {
 	return isFile(cache.joinPath(key))
 }
 

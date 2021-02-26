@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"os"
-	"time"
 
 	"github.com/hermo/npmi-go/pkg/archive"
 	"github.com/hermo/npmi-go/pkg/cache"
@@ -29,75 +26,82 @@ func main() {
 
 	fmt.Printf("Hash: %s\n", hash)
 
-	_, err = archive.CompressModules()
+	caches, err := initCaches(options)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if options.UseLocalCache {
-		cache, err := cache.NewLocalCache(options.LocalCache.Dir)
-		if err != nil {
-			log.Fatalf("Can't use local cache: %v", err)
-		}
-
-		hit := cache.Has(hash)
-		if hit {
-			fmt.Println("Local HIT, contents follow:")
-			f, err := cache.Get(hash)
-			if err != nil {
-				log.Fatal(err)
-			}
-			io.Copy(os.Stdout, f)
-			fmt.Println("")
-		}
-
-		if options.Force || !hit {
-			fmt.Println("Local MISS, caching content")
-			var buf bytes.Buffer
-
-			t := time.Now()
-			buf.Write([]byte(t.Format(time.UnixDate)))
-
-			err := cache.Put(hash, &buf)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-
-	if options.UseMinioCache {
-		cache := cache.NewMinioCache()
-		err := cache.Dial(options.MinioCache.Endpoint, options.MinioCache.AccessKeyID, options.MinioCache.SecretAccessKey, options.MinioCache.UseTLS)
+	for _, cache := range caches {
+		fmt.Printf("CACHE: %T\n", cache)
+		hit, err := cache.Has(hash)
 		if err != nil {
 			log.Fatal(err)
 		}
-		hit, err := cache.Has(hash)
-		if err != nil {
-			log.Fatalf("Minio Cache error: %#v", err)
-		}
 		if hit {
-			fmt.Println("Minio HIT, contents follow: ")
+			fmt.Println("Cache HIT")
 			f, err := cache.Get(hash)
 			if err != nil {
 				log.Fatal(err)
 			}
-			io.Copy(os.Stdout, f)
-			fmt.Println("")
-		}
-
-		if options.Force || !hit {
-			fmt.Println("Minio MISS")
-			t := time.Now()
-
-			var buf bytes.Buffer
-
-			buf.Write([]byte(t.Format(time.UnixDate)))
-
-			err := cache.Put(hash, &buf)
+			err = archive.DecompressModules(f)
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println("Minio cache updated")
+			break
 		}
+
+		if options.Force || !hit {
+			fmt.Println("MISS, caching content")
+			filename, err := archive.CompressModules()
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			f, err := os.Open(filename)
+			defer f.Close()
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			err = cache.Put(hash, f)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
 	}
+
+}
+
+func initMinioCache(options *MinioCacheOptions) (cache.Cacher, error) {
+	cache := cache.NewMinioCache()
+	err := cache.Dial(options.Endpoint, options.AccessKeyID, options.SecretAccessKey, options.UseTLS)
+	if err != nil {
+		return nil, err
+	}
+	return cache, nil
+}
+
+func initLocalCache(options *LocalCacheOptions) (cache.Cacher, error) {
+	return cache.NewLocalCache(options.Dir)
+}
+
+func initCaches(options *Options) ([]cache.Cacher, error) {
+	var caches []cache.Cacher
+	if options.UseLocalCache {
+		cache, err := initLocalCache(options.LocalCache)
+		if err != nil {
+			return nil, err
+		}
+		caches = append(caches, cache)
+	}
+
+	if options.UseMinioCache {
+		cache, err := initMinioCache(options.MinioCache)
+		if err != nil {
+			return nil, err
+		}
+		caches = append(caches, cache)
+	}
+	return caches, nil
 }
