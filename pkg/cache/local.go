@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path"
+
+	"github.com/hermo/npmi-go/pkg/files"
 )
 
 // LocalCache represents a local cache instance
@@ -12,36 +14,12 @@ type LocalCache struct {
 	dir string
 }
 
-// isExistingDir determines if a given path exists and is a directory or not
-func isExistingDir(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-		panic(err)
-	}
-	return info.IsDir()
-}
-
-// isFile determines if a given path exists and is a file
-func isFile(path string) (bool, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return !info.IsDir(), nil
-}
-
 // NewLocalCache creates a new LocalCache
 func NewLocalCache(dir string) (Cacher, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("No cache directory given")
 	}
-	if !isExistingDir(dir) {
+	if !files.IsExistingDir(dir) {
 		return nil, fmt.Errorf("%s is not a valid directory", dir)
 	}
 	return &LocalCache{dir}, nil
@@ -54,7 +32,7 @@ func (cache *LocalCache) joinPath(key string) string {
 
 // Has indicates whether a LocalCache contains a given key or not
 func (cache *LocalCache) Has(key string) (bool, error) {
-	return isFile(cache.joinPath(key))
+	return files.IsExistingFile(cache.joinPath(key))
 }
 
 // Get fetches something from the cache
