@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // DeterminePlatform determines the node platform
@@ -23,7 +24,7 @@ func DeterminePlatform() (string, error) {
 	if err = cmd.Run(); err != nil {
 		return "", err
 	}
-	return out.String(), nil
+	return strings.TrimSpace(out.String()), nil
 }
 
 // HashFile attempts to hash a file using SHA-256
