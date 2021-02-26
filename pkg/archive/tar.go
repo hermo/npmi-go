@@ -84,6 +84,7 @@ func createTarGz(src string, writers ...io.Writer) error {
 			return err
 		}
 
+		// TODO: Test if this is unnecessary
 		header.Name = file
 
 		// write the header
@@ -117,7 +118,6 @@ func createTarGz(src string, writers ...io.Writer) error {
 // untar takes a destination path and a reader; a tar reader loops over the tarfile
 // creating the file structure at 'dst' along the way, and writing any files
 func untar(dst string, r io.Reader) error {
-
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
 		return err

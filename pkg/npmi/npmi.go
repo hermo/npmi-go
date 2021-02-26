@@ -17,7 +17,7 @@ var (
 
 // DeterminePlatform determines the node platform
 func DeterminePlatform() (string, error) {
-	if nodeBinary == "" || npmBinary == "" {
+	if nodeBinary == "" {
 		return "", fmt.Errorf("DeterminePlatform: InitNodeBinaries not run")
 	}
 

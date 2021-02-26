@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/hermo/npmi-go/internal/cli"
 	"github.com/hermo/npmi-go/pkg/archive"
 	"github.com/hermo/npmi-go/pkg/cache"
 	"github.com/hermo/npmi-go/pkg/files"
@@ -23,7 +24,7 @@ func init() {
 }
 
 func main() {
-	options, err := ParseFlags()
+	options, err := cli.ParseFlags()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,7 +36,11 @@ func main() {
 
 	caches, err := initCaches(options)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Cache init error: %s", err)
+	}
+
+	if options.Verbose {
+		fmt.Println("npmi start")
 	}
 
 	hash, err := npmi.HashFile(lockFile)
@@ -43,33 +48,57 @@ func main() {
 		log.Fatalf("Can't hash %s: %s", lockFile, err)
 	}
 
-	key := createKey(env, hash)
+	key := createCacheKey(env, hash)
 
 	if options.Verbose {
-		fmt.Printf("Key: %s\n", key)
-		fmt.Println("Lookup start")
+		fmt.Printf("Lookup start, looking for key %s\n", key)
 	}
 
 	hit := false
 	for _, cache := range caches {
+		if options.Verbose {
+			fmt.Printf("Lookup(%s).Has start\n", cache)
+		}
+
 		hit, err = cache.Has(key)
 		if err != nil {
-			log.Fatalf("Lookup cache(%T).Has error: %s", cache, err)
+			log.Fatalf("Lookup(%s).Has error: %s", cache, err)
 		}
-		if hit {
+
+		if !hit {
 			if options.Verbose {
-				fmt.Printf("Lookup cache(%T) HIT, extracting\n", cache)
+				fmt.Printf("Lookup(%s).Has complete: MISS\n", cache)
 			}
-			f, err := cache.Get(key)
-			if err != nil {
-				log.Fatalf("Lookup cache(%T).Get error: %s", cache, err)
-			}
-			err = archive.ExtractArchive("", f)
-			if err != nil {
-				log.Fatalf("Lookup cache(%T).Extract error: %s", cache, err)
-			}
-			break
+			// Cache miss, continue with next cache
+			continue
 		}
+
+		if options.Verbose {
+			fmt.Printf("Lookup(%s).Has complete: HIT\n", cache)
+			fmt.Printf("Lookup(%s).Get start\n", cache)
+		}
+
+		f, err := cache.Get(key)
+		if err != nil {
+			log.Fatalf("Lookup(%s).Get error: %s", cache, err)
+		}
+
+		if options.Verbose {
+			fmt.Printf("Lookup(%s).Get complete\n", cache)
+			fmt.Printf("Lookup(%s).Extract start\n", cache)
+		}
+
+		err = archive.ExtractArchive("", f)
+		if err != nil {
+			log.Fatalf("Lookup(%s).Extract error: %s", cache, err)
+		}
+
+		if options.Verbose {
+			fmt.Printf("Lookup(%s).Extract complete\n", cache)
+		}
+
+		// Cache hit, no need to look further
+		break
 	}
 
 	if options.Verbose {
@@ -86,10 +115,10 @@ func main() {
 
 		stdout, stderr, err := npmi.InstallPackages()
 		if err != nil {
-			log.Fatalf("Install NPM error: %v: %s", err, stderr)
+			log.Fatalf("Install(npm) error: %v: %s", err, stderr)
 		}
 		if options.Verbose {
-			fmt.Printf("Install NPM success: %s\n", stdout)
+			fmt.Printf("Install(npm) complete: success: %s\n", stdout)
 		}
 		if !files.IsExistingDir(modulesDirectory) {
 			log.Fatalf("Post-install: Modules directory not present after NPM install: %s", modulesDirectory)
@@ -111,10 +140,10 @@ func main() {
 		defer func() {
 			err := os.Remove(filename)
 			if err != nil {
-				log.Fatalf("Could not remove temporary archive: %v", err)
+				log.Fatalf("Post-Archive: Could not remove temporary archive: %v", err)
 			}
 			if options.Verbose {
-				fmt.Printf("Removed temporary archive %s", filename)
+				fmt.Printf("Post-Archive: Removed temporary archive %s", filename)
 			}
 		}()
 
@@ -125,37 +154,42 @@ func main() {
 
 		for _, cache := range caches {
 			if options.Verbose {
-				fmt.Printf("Cache(%T) Open temporary archive\n", cache)
+				fmt.Printf("Cache(%s).Open start\n", cache)
 			}
 
 			f, err := os.Open(filename)
 			defer f.Close()
 			if err != nil {
-				log.Fatalf("Cache(%T) Open error: %s", cache, err)
+				log.Fatalf("Cache(%s).Open error: %s", cache, err)
 			}
 
 			if options.Verbose {
-				fmt.Printf("Cache(%T) Put start\n", cache)
+				fmt.Printf("Cache(%s).Open complete\n", cache)
+				fmt.Printf("Cache(%s).Put start\n", cache)
 			}
 			err = cache.Put(key, f)
 			if err != nil {
-				log.Fatalf("Cache(%T) Put error: %s", cache, err)
+				log.Fatalf("Cache(%s).Put error: %s", cache, err)
 			}
 			if options.Verbose {
-				fmt.Printf("Cache(%T) Put complete\n", cache)
+				fmt.Printf("Cache(%s).Put complete\n", cache)
 			}
 		}
+		if options.Verbose {
+			fmt.Println("Cache phase complete")
+		}
 	}
+
 	if options.Verbose {
-		fmt.Println("Cache phase complete")
+		fmt.Println("npmi complete")
 	}
 }
 
-func createKey(env string, hash string) string {
+func createCacheKey(env string, hash string) string {
 	return fmt.Sprintf("%s-%s", env, hash)
 }
 
-func initMinioCache(options *MinioCacheOptions) (cache.Cacher, error) {
+func initMinioCache(options *cli.MinioCacheOptions) (cache.Cacher, error) {
 	cache := cache.NewMinioCache()
 	err := cache.Dial(options.Endpoint, options.AccessKeyID, options.SecretAccessKey, options.UseTLS)
 	if err != nil {
@@ -164,11 +198,11 @@ func initMinioCache(options *MinioCacheOptions) (cache.Cacher, error) {
 	return cache, nil
 }
 
-func initLocalCache(options *LocalCacheOptions) (cache.Cacher, error) {
+func initLocalCache(options *cli.LocalCacheOptions) (cache.Cacher, error) {
 	return cache.NewLocalCache(options.Dir)
 }
 
-func initCaches(options *Options) ([]cache.Cacher, error) {
+func initCaches(options *cli.Options) ([]cache.Cacher, error) {
 	var caches []cache.Cacher
 	if options.UseLocalCache {
 		cache, err := initLocalCache(options.LocalCache)
