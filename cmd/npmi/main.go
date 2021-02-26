@@ -88,9 +88,20 @@ func main() {
 			fmt.Printf("Lookup(%s).Extract start\n", cache)
 		}
 
-		err = archive.ExtractArchive("", f)
+		manifest, err := archive.ExtractArchive("", f)
 		if err != nil {
 			log.Fatalf("Lookup(%s).Extract error: %s", cache, err)
+		}
+
+		if options.Verbose {
+			fmt.Println("Cleanup phase start")
+		}
+		numRemoved, err := archive.CleanTree(modulesDirectory, manifest)
+		if err != nil {
+			log.Fatalf("Cleanup error: %s", err)
+		}
+		if options.Verbose {
+			fmt.Printf("Cleanup phase complete, %d extraneous files removed\n", numRemoved)
 		}
 
 		if options.Verbose {

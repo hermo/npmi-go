@@ -37,7 +37,7 @@ func Archive(filename string, src string) error {
 }
 
 // ExtractArchive uncompresses stuff
-func ExtractArchive(dst string, reader io.Reader) error {
+func ExtractArchive(dst string, reader io.Reader) ([]string, error) {
 	return untar(dst, reader)
 }
 
@@ -117,10 +117,11 @@ func createTarGz(src string, writers ...io.Writer) error {
 
 // untar takes a destination path and a reader; a tar reader loops over the tarfile
 // creating the file structure at 'dst' along the way, and writing any files
-func untar(dst string, r io.Reader) error {
+func untar(dst string, r io.Reader) ([]string, error) {
+	var manifest []string
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer gzr.Close()
 
@@ -133,7 +134,7 @@ func untar(dst string, r io.Reader) error {
 		}
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// if the header is nil, just skip it (not sure how this happens)
@@ -156,20 +157,21 @@ func untar(dst string, r io.Reader) error {
 		case tar.TypeDir:
 			if _, err := os.Stat(target); err != nil {
 				if err := os.MkdirAll(target, 0755); err != nil {
-					return err
+					return nil, err
 				}
 			}
 
 		// if it's a file create it
 		case tar.TypeReg:
+			manifest = append(manifest, target)
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			// copy over contents
 			if _, err := io.Copy(f, tr); err != nil {
-				return err
+				return nil, err
 			}
 
 			// manually close here after each file operation; defering would cause each file close
@@ -177,5 +179,41 @@ func untar(dst string, r io.Reader) error {
 			f.Close()
 		}
 	}
-	return nil
+	return manifest, nil
+}
+
+// CleanTree compares a real directory tree with a manifest and removes extra files
+func CleanTree(src string, manifest []string) (int, error) {
+
+	numRemoved := 0
+
+	// Convert manifest into a map
+	// TODO: Just create the manifest in map for to begin with
+	m := make(map[string]bool, len(manifest))
+	for _, f := range manifest {
+		m[f] = true
+	}
+
+	return numRemoved, filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// return on non-regular files (thanks to [kumo](https://medium.com/@komuw/just-like-you-did-fbdd7df829d3) for this suggested update)
+		// TODO: Add link support
+		if !fi.Mode().IsRegular() {
+			return nil
+		}
+
+		// Delete files not present in manifest
+		if !m[file] {
+			fmt.Printf("DEL: %s\n", file)
+			err = os.Remove(file)
+			if err != nil {
+				return err
+			}
+			numRemoved++
+		}
+		return nil
+	})
 }
