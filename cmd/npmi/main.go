@@ -26,36 +26,44 @@ func main() {
 
 	fmt.Printf("Hash: %s\n", hash)
 
+	key := createKey(env, hash)
+
 	caches, err := initCaches(options)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	fmt.Println("-- Lookup phase --")
+	hit := false
 	for _, cache := range caches {
-		fmt.Printf("CACHE: %T\n", cache)
-		hit, err := cache.Has(hash)
+		hit, err := cache.Has(key)
 		if err != nil {
 			log.Fatal(err)
 		}
 		if hit {
-			fmt.Println("Cache HIT")
-			f, err := cache.Get(hash)
+			fmt.Printf("%T HIT, extracting\n", cache)
+			f, err := cache.Get(key)
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = archive.DecompressModules(f)
+			err = archive.ExtractArchive(f)
 			if err != nil {
 				log.Fatal(err)
 			}
 			break
 		}
+	}
 
+	fmt.Println("-- Cache phase --")
+	filename := fmt.Sprintf("%s.tar.gz", key)
+	err = archive.Archive(filename, "pkg")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, cache := range caches {
 		if options.Force || !hit {
-			fmt.Println("MISS, caching content")
-			filename, err := archive.CompressModules()
-			if err != nil {
-				log.Fatal(err)
-			}
+			fmt.Printf("%T MISS, updating cache\n", cache)
 
 			f, err := os.Open(filename)
 			defer f.Close()
@@ -63,7 +71,7 @@ func main() {
 				log.Fatal(err)
 			}
 
-			err = cache.Put(hash, f)
+			err = cache.Put(key, f)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -71,6 +79,10 @@ func main() {
 
 	}
 
+}
+
+func createKey(env string, hash string) string {
+	return fmt.Sprintf("%s-%s", env, hash)
 }
 
 func initMinioCache(options *MinioCacheOptions) (cache.Cacher, error) {
