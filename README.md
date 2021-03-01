@@ -9,6 +9,9 @@ The cache key is something like
 # Not for production (yet)
 Note that npmi-go is work-in-progress and should not be used in production.
 
+# Installation
+- Download a prebuilt binary from the [releases page](https://github.com/hermo/npmi-go/releases/latest)
+
 # Supported Caches
 
 ## Local
