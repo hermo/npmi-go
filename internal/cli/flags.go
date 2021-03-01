@@ -27,6 +27,7 @@ type Options struct {
 	UseMinioCache bool
 	MinioCache    *MinioCacheOptions
 	LocalCache    *LocalCacheOptions
+	PrecacheCmd   string
 }
 
 var (
@@ -69,6 +70,7 @@ func ParseFlags() (*Options, error) {
 	flag.StringVar(&minioCache.AccessKeyID, "minio-access-key-id", "", "Minio access key ID")
 	flag.StringVar(&minioCache.SecretAccessKey, "minio-secret-access-key", "", "Minio secret access key")
 	flag.BoolVar(&minioCache.UseTLS, "minio-tls", true, "Use TLS to access Minio cache")
+	flag.StringVar(&options.PrecacheCmd, "precache", "", "Run the following shell command before caching packages")
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), usage, version, commit, date)

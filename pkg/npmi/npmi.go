@@ -65,9 +65,29 @@ func hashHandle(handle io.Reader) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
+// HashString hashes a given string
+func HashString(str string) (string, error) {
+	h := sha256.New()
+	if _, err := h.Write([]byte(str)); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
 // InstallPackages installs packages from NPM
 func InstallPackages() (stdout string, stderr string, err error) {
-	cmd := exec.Command(npmBinary, "ci")
+	return runCommand(npmBinary, "ci")
+}
+
+// RunPrecacheCommand runs a given command before inserting freshly installed NPM deps into cache
+func RunPrecacheCommand(commandLine string) (stdout string, stderr string, err error) {
+	// TODO: Consider adding Windows support
+	return runCommand("sh", "-c", commandLine)
+}
+
+func runCommand(name string, args ...string) (stdout string, stderr string, err error) {
+	cmd := exec.Command(name, args...)
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf

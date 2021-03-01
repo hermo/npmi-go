@@ -45,10 +45,10 @@ func main() {
 
 	hash, err := npmi.HashFile(lockFile)
 	if err != nil {
-		log.Fatalf("Can't hash %s: %s", lockFile, err)
+		log.Fatalf("Can't hash lockfile: %v", err)
 	}
 
-	key := createCacheKey(env, hash)
+	key := createCacheKey(env, hash, options.PrecacheCmd)
 
 	if options.Verbose {
 		fmt.Printf("Lookup start, looking for key %s\n", key)
@@ -124,13 +124,32 @@ func main() {
 			}
 		}
 
+		if options.Verbose {
+			fmt.Println("Install(npm).InstallPackages start")
+		}
+
 		stdout, stderr, err := npmi.InstallPackages()
 		if err != nil {
-			log.Fatalf("Install(npm) error: %v: %s", err, stderr)
+			log.Fatalf("Install(npm).InstallPackages error: %v: %s", err, stderr)
 		}
+
 		if options.Verbose {
-			fmt.Printf("Install(npm) complete: success: %s\n", stdout)
+			fmt.Printf("Install(npm).InstallPackages complete: success: %s\n", stdout)
 		}
+
+		if options.PrecacheCmd != "" {
+			if options.Verbose {
+				fmt.Println("Install(npm).InstallPackages start")
+			}
+			stdout, stderr, err = npmi.RunPrecacheCommand(options.PrecacheCmd)
+			if err != nil {
+				log.Fatalf("Install(npm).PreCache error: %v: %s", err, stderr)
+			}
+			if options.Verbose {
+				fmt.Printf("Install(npm).PreCache complete: success: %s\n", stdout)
+			}
+		}
+
 		if !files.IsExistingDir(modulesDirectory) {
 			log.Fatalf("Post-install: Modules directory not present after NPM install: %s", modulesDirectory)
 		}
@@ -196,8 +215,16 @@ func main() {
 	}
 }
 
-func createCacheKey(env string, hash string) string {
-	return fmt.Sprintf("%s-%s", env, hash)
+func createCacheKey(env string, hash string, precacheCmd string) string {
+	key := fmt.Sprintf("%s-%s", env, hash)
+	if precacheCmd != "" {
+		if precacheHash, err := npmi.HashString(precacheCmd); err != nil {
+			log.Fatalf("Could not hash precache command: %v", err)
+		} else {
+			return fmt.Sprintf("%s-%s", key, precacheHash)
+		}
+	}
+	return key
 }
 
 func initMinioCache(options *cli.MinioCacheOptions) (cache.Cacher, error) {
