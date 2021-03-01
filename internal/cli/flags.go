@@ -38,8 +38,8 @@ var (
 )
 
 const (
-	usage = `npmi %s, commit %s, built at %s.
-npmi installs NPM packages from a cache to speed up repeating installations.
+	usage = `npmi-go %s, commit %s, built at %s.
+npmi-go installs NPM packages from a cache to speed up repeating installations.
 
 Supported caches:
 -  local		Data is cached locally in a directory.
@@ -48,7 +48,7 @@ Supported caches:
 When using both caches, the local one is accessed first.
 
 USAGE:
- npmi [OPTIONS]
+ npmi-go [OPTIONS]
 
 OPTIONS:
 `

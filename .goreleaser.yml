@@ -2,9 +2,9 @@ before:
   hooks:
     - go mod download
 builds:
-- id: npmi
-  binary: npmi
-  main: ./cmd/npmi/main.go
+- id: npmi-go
+  binary: npmi-go
+  main: ./cmd/npmi-go/main.go
   env:
     - CGO_ENABLED=0
   goos:

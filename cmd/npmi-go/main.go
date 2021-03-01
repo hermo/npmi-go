@@ -40,7 +40,7 @@ func main() {
 	}
 
 	if options.Verbose {
-		fmt.Println("npmi start")
+		fmt.Println("npmi-go start")
 	}
 
 	hash, err := npmi.HashFile(lockFile)
@@ -94,14 +94,14 @@ func main() {
 		}
 
 		if options.Verbose {
-			fmt.Println("Cleanup phase start")
+			fmt.Println("Cleanup start")
 		}
 		numRemoved, err := archive.CleanTree(modulesDirectory, manifest)
 		if err != nil {
 			log.Fatalf("Cleanup error: %s", err)
 		}
 		if options.Verbose {
-			fmt.Printf("Cleanup phase complete, %d extraneous files removed\n", numRemoved)
+			fmt.Printf("Cleanup complete, %d extraneous files removed\n", numRemoved)
 		}
 
 		if options.Verbose {
@@ -113,12 +113,12 @@ func main() {
 	}
 
 	if options.Verbose {
-		fmt.Println("Lookup phase complete")
+		fmt.Println("Lookup complete")
 	}
 
 	if options.Force || !hit {
 		if options.Verbose {
-			fmt.Println("Install phase start")
+			fmt.Println("Install start")
 			if options.Force && hit {
 				fmt.Println("NOTE: Cache was a HIT, install is forced")
 			}
@@ -154,11 +154,11 @@ func main() {
 			log.Fatalf("Post-install: Modules directory not present after NPM install: %s", modulesDirectory)
 		}
 		if options.Verbose {
-			fmt.Println("Install phase complete")
+			fmt.Println("Install complete")
 		}
 		filename := fmt.Sprintf("modules-%s.tar.gz", key)
 		if options.Verbose {
-			fmt.Println("Archive phase start")
+			fmt.Println("Archive start")
 			fmt.Printf("Archive creating %s\n", filename)
 		}
 		err = archive.Archive(filename, modulesDirectory)
@@ -178,8 +178,8 @@ func main() {
 		}()
 
 		if options.Verbose {
-			fmt.Println("Archive phase complete")
-			fmt.Println("Cache phase start")
+			fmt.Println("Archive complete")
+			fmt.Println("Cache start")
 		}
 
 		for _, cache := range caches {
@@ -206,12 +206,12 @@ func main() {
 			}
 		}
 		if options.Verbose {
-			fmt.Println("Cache phase complete")
+			fmt.Println("Cache complete")
 		}
 	}
 
 	if options.Verbose {
-		fmt.Println("npmi complete")
+		fmt.Println("npmi-go complete")
 	}
 }
 
