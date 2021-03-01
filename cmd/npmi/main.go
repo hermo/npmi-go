@@ -228,8 +228,8 @@ func createCacheKey(env string, hash string, precacheCmd string) string {
 }
 
 func initMinioCache(options *cli.MinioCacheOptions) (cache.Cacher, error) {
-	cache := cache.NewMinioCache()
-	err := cache.Dial(options.Endpoint, options.AccessKeyID, options.SecretAccessKey, options.UseTLS)
+	cache := cache.NewMinioCache(options.Endpoint, options.AccessKeyID, options.SecretAccessKey, options.Bucket, options.UseTLS)
+	err := cache.Dial()
 	if err != nil {
 		return nil, err
 	}

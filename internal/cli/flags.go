@@ -11,6 +11,7 @@ type MinioCacheOptions struct {
 	Endpoint        string
 	AccessKeyID     string
 	SecretAccessKey string
+	Bucket          string
 	UseTLS          bool
 }
 
@@ -69,6 +70,7 @@ func ParseFlags() (*Options, error) {
 	flag.StringVar(&minioCache.Endpoint, "minio-endpoint", "", "Minio endpoint")
 	flag.StringVar(&minioCache.AccessKeyID, "minio-access-key-id", "", "Minio access key ID")
 	flag.StringVar(&minioCache.SecretAccessKey, "minio-secret-access-key", "", "Minio secret access key")
+	flag.StringVar(&minioCache.Bucket, "minio-bucket", "", "Minio Bucket")
 	flag.BoolVar(&minioCache.UseTLS, "minio-tls", true, "Use TLS to access Minio cache")
 	flag.StringVar(&options.PrecacheCmd, "precache", "", "Run the following shell command before caching packages")
 

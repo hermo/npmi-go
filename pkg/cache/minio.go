@@ -10,20 +10,24 @@ import (
 
 // MinioCache represents a Minio Cache instance
 type MinioCache struct {
-	client *minio.Client
-	bucket string
+	client          *minio.Client
+	endpoint        string
+	accessKeyID     string
+	secretAccessKey string
+	useTLS          bool
+	bucket          string
 }
 
 // NewMinioCache creates a new Minio Cache
-func NewMinioCache() *MinioCache {
-	return &MinioCache{bucket: "mah-bucket"}
+func NewMinioCache(endpoint string, accessKeyID string, secretAccessKey string, bucket string, useTLS bool) *MinioCache {
+	return &MinioCache{nil, endpoint, accessKeyID, secretAccessKey, useTLS, bucket}
 }
 
 // Dial connects to a Minio instance
-func (cache *MinioCache) Dial(endpoint string, accessKeyID string, secretAccessKey string, useTLS bool) error {
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useTLS,
+func (cache *MinioCache) Dial() error {
+	minioClient, err := minio.New(cache.endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cache.accessKeyID, cache.secretAccessKey, ""),
+		Secure: cache.useTLS,
 	})
 
 	if err != nil {
@@ -44,10 +48,8 @@ func (cache *MinioCache) Has(key string) (bool, error) {
 				return false, nil
 			}
 		}
-
 		return false, err
 	}
-	// fmt.Println(objInfo)
 	return true, nil
 }
 
@@ -61,7 +63,6 @@ func (cache *MinioCache) Put(key string, reader io.Reader) error {
 	if err != nil {
 		return err
 	}
-	//fmt.Println("Successfully uploaded bytes: ", uploadInfo)
 	return nil
 }
 
