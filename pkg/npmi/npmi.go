@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/hermo/npmi-go/pkg/cmd"
 )
 
 var (
@@ -77,23 +79,10 @@ func HashString(str string) (string, error) {
 
 // InstallPackages installs packages from NPM
 func InstallPackages() (stdout string, stderr string, err error) {
-	return runCommand(npmBinary, "ci")
+	return cmd.RunCommand(npmBinary, "ci")
 }
 
 // RunPrecacheCommand runs a given command before inserting freshly installed NPM deps into cache
 func RunPrecacheCommand(commandLine string) (stdout string, stderr string, err error) {
-	// TODO: Consider adding Windows support
-	return runCommand("sh", "-c", commandLine)
-}
-
-func runCommand(name string, args ...string) (stdout string, stderr string, err error) {
-	cmd := exec.Command(name, args...)
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	err = cmd.Run()
-	stdout = strings.TrimSpace(stdoutBuf.String())
-	stderr = strings.TrimSpace(stderrBuf.String())
-	return
+	return cmd.RunShellCommand(commandLine)
 }
