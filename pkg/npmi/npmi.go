@@ -17,22 +17,22 @@ var (
 	npmBinary  string
 )
 
-// DeterminePlatform determines the node platform
+// DeterminePlatform determines the Node.js runtime platform and mode
 func DeterminePlatform() (string, error) {
 	if nodeBinary == "" {
 		return "", fmt.Errorf("DeterminePlatform: InitNodeBinaries not run")
 	}
 
-	cmd := exec.Command(nodeBinary, "-p", `process.version + "-" + process.platform + "-" + process.arch`)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
+	env, _, err := cmd.RunCommand(nodeBinary, "-p", `process.version + "-" + process.platform + "-" + process.arch`)
+	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(out.String()), nil
+
 }
 
-// InitNodeBinaries makes sure that required Node.JS binaries are present
+	return env, nil
+}
+// InitNodeBinaries makes sure that required Node.js binaries are present
 func InitNodeBinaries() error {
 	var err error
 	nodeBinary, err = exec.LookPath("node")
@@ -47,30 +47,24 @@ func InitNodeBinaries() error {
 	return nil
 }
 
-// HashFile attempts to hash a file using SHA-256
+// HashFile hashes a file using SHA-256
 func HashFile(filename string) (string, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
-	return hashHandle(f)
+	return hashInput(f)
 }
 
-// hashHandle does the actual hashing given a file handle
-func hashHandle(handle io.Reader) (string, error) {
-	h := sha256.New()
-	if _, err := io.Copy(h, handle); err != nil {
-		return "", err
+// HashString hashes a given string using SHA-256
+func HashString(str string) (string, error) {
+	return hashInput(strings.NewReader(str))
 	}
 
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
-}
-
-// HashString hashes a given string
-func HashString(str string) (string, error) {
+func hashInput(r io.Reader) (string, error) {
 	h := sha256.New()
-	if _, err := h.Write([]byte(str)); err != nil {
+	if _, err := io.Copy(h, r); err != nil {
 		return "", err
 	}
 

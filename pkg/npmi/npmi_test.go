@@ -17,10 +17,10 @@ func Test_HashFile(t *testing.T) {
 	}
 }
 
-func Test_hashHandle(t *testing.T) {
+func Test_hashInput(t *testing.T) {
 	var buffer bytes.Buffer
 	buffer.WriteString("Hello!")
-	hash, err := hashHandle(&buffer)
+	hash, err := hashInput(&buffer)
 	if err != nil {
 		t.Error(err)
 	}
