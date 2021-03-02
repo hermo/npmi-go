@@ -1,7 +1,6 @@
 package npmi
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -28,10 +27,16 @@ func DeterminePlatform() (string, error) {
 		return "", err
 	}
 
-}
+	// NODE_ENV determines what kind of deps are being installed
+	if os.Getenv("NODE_ENV") == "production" {
+		env += "-prod"
+	} else {
+		env += "-dev"
+	}
 
 	return env, nil
 }
+
 // InitNodeBinaries makes sure that required Node.js binaries are present
 func InitNodeBinaries() error {
 	var err error
@@ -60,7 +65,7 @@ func HashFile(filename string) (string, error) {
 // HashString hashes a given string using SHA-256
 func HashString(str string) (string, error) {
 	return hashInput(strings.NewReader(str))
-	}
+}
 
 func hashInput(r io.Reader) (string, error) {
 	h := sha256.New()
@@ -73,7 +78,7 @@ func hashInput(r io.Reader) (string, error) {
 
 // InstallPackages installs packages from NPM
 func InstallPackages() (stdout string, stderr string, err error) {
-	return cmd.RunCommand(npmBinary, "ci")
+	return cmd.RunCommand(npmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
 }
 
 // RunPrecacheCommand runs a given command before inserting freshly installed NPM deps into cache
