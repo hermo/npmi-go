@@ -4,7 +4,7 @@ locally or in a Minio instance. The Node runtime environment and a hash of
 package-lock.json is used as the cache key.
 
 The cache key is something like
-`v12.16.3-darwin-x64-78c49bbaba2e4002e313e55018716d9a673fa99f1e676afcb03df0a902f4883f`.
+`v12.16.3-darwin-x64-dev-78c49bbaba2e4002e313e55018716d9a673fa99f1e676afcb03df0a902f4883f`.
 
 # Not for production (yet)
 Note that npmi-go is work-in-progress and should not be used in production.
@@ -69,7 +69,7 @@ npmi-go   -verbose \
 Note that we disable the local cache for testing purposes.
 
 ```npmi-go start
-Lookup start, looking for key v12.16.3-darwin-x64-xxxx
+Lookup start, looking for key v12.16.3-darwin-x64-dev-xxxx
 Lookup(minio).Has start
 Lookup(minio).Has complete: MISS
 Lookup complete
@@ -78,7 +78,7 @@ Install(npm).InstallPackages start
 Install(npm).InstallPackages complete: success: added 2 packages in 0.04s
 Install complete
 Archive start
-Archive creating modules-v12.16.3-darwin-x64-xxxx.tar.gz
+Archive creating modules-v12.16.3-darwin-x64-dev-xxxx.tar.gz
 Archive complete
 Cache start
 Cache(minio).Open start
@@ -87,14 +87,14 @@ Cache(minio).Put start
 Cache(minio).Put complete
 Cache complete
 npmi-go complete
-Post-Archive: Removed temporary archive modules-v12.16.3-darwin-x64-xxxx.tar.gz
+Post-Archive: Removed temporary archive modules-v12.16.3-darwin-x64-dev-xxxx.tar.gz
 ```
 
 Now run the same `npmi-go` command again. The output will be something like:
 
 ```
 npmi-go start
-Lookup start, looking for key v12.16.3-darwin-x64-xxxx
+Lookup start, looking for key v12.16.3-darwin-x64-dev-xxxx
 Lookup(minio).Has start
 Lookup(minio).Has complete: HIT
 Lookup(minio).Get start
@@ -122,6 +122,25 @@ When using both caches, the local one is accessed first.
 
 USAGE:
  npmi-go [OPTIONS]
+
+ENVIRONMENT VARIABLES:
+Use the following env variables to set default options.
+
+  NPMI_VERBOSE   Verbose output
+  NPMI_FORCE     Force (re)installation of deps
+  NPMI_PRECACHE  Pre-cache command
+
+Local cache:
+  NPMI_LOCAL      Use local cache
+  NPMI_LOCAL_DIR  Local cache directory
+
+Minio cache:
+  NPMI_MINIO                    Use Minio cache
+  NPMI_MINIO_ENDPOINT           Minio endpoint URL
+  NPMI_MINIO_ACCESS_KEY_ID      Minio access key ID
+  NPMI_MINIO_SECRET_ACCESS_KEY  Minio secret access key
+  NPMI_MINIO_BUCKET             Minio bucket name
+  NPMI_MINIO_TLS                Use TLS when connection to minio
 
 OPTIONS:
   -force
@@ -154,12 +173,9 @@ npmi-go does not currently support a config file.
 
 ## Configuration with environment variables
 
-npmi-go does not currently support env variables.
+The environment variables described before are used as defaults when present.
 
 # Known Issues
-
-## The difference between dev and prod dependencies is not honored
-The cache key does not currently take into account what kind of deps are installed.
 
 ## package-lock.json sync is not checked
 npmi-go does not check is a package-lock.json file is in sync with package.lock.
