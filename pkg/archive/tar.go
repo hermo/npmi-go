@@ -9,17 +9,6 @@ import (
 	"path/filepath"
 )
 
-func cleanup(path string) error {
-	err := os.Remove(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
 // Archive creates an archive file containing the contents of src
 func Archive(filename string, src string) error {
 	f, err := os.Create(filename)

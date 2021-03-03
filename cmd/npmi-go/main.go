@@ -188,10 +188,10 @@ func main() {
 			}
 
 			f, err := os.Open(filename)
-			defer f.Close()
 			if err != nil {
 				log.Fatalf("Cache(%s).Open error: %s", cache, err)
 			}
+			defer f.Close()
 
 			if options.Verbose {
 				fmt.Printf("Cache(%s).Open complete\n", cache)
