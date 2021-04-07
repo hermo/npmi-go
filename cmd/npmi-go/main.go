@@ -88,6 +88,13 @@ func main() {
 			fmt.Printf("Lookup(%s).Extract start\n", cache)
 		}
 
+		if options.Force {
+			if options.Verbose {
+				fmt.Printf("Lookup(%s).Extract SKIPPED, Force install requested\n", cache)
+			}
+			continue
+		}
+
 		manifest, err := archive.ExtractArchive("", f)
 		if err != nil {
 			log.Fatalf("Lookup(%s).Extract error: %s", cache, err)
