@@ -27,14 +27,18 @@ func DeterminePlatform() (string, error) {
 		return "", err
 	}
 
-	// NODE_ENV determines what kind of deps are being installed
-	if os.Getenv("NODE_ENV") == "production" {
+	if isNodeInProductionMode() {
 		env += "-prod"
 	} else {
 		env += "-dev"
 	}
 
 	return env, nil
+}
+
+// isNodeInProductionMode determines whether or not Node is running in production mode
+func isNodeInProductionMode() bool {
+	return os.Getenv("NODE_ENV") == "production"
 }
 
 // InitNodeBinaries makes sure that required Node.js binaries are present
@@ -78,7 +82,11 @@ func hashInput(r io.Reader) (string, error) {
 
 // InstallPackages installs packages from NPM
 func InstallPackages() (stdout string, stderr string, err error) {
-	return cmd.RunCommand(npmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
+	if isNodeInProductionMode() {
+		return cmd.RunCommand(npmBinary, "ci", "--production", "--loglevel", "error", "--progress", "false")
+	} else {
+		return cmd.RunCommand(npmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
+	}
 }
 
 // RunPrecacheCommand runs a given command before inserting freshly installed NPM deps into cache
