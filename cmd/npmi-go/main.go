@@ -17,13 +17,11 @@ const (
 	lockFile         = "package-lock.json"
 )
 
-func init() {
+func main() {
 	if err := npmi.InitNodeBinaries(); err != nil {
 		log.Fatal(err)
 	}
-}
 
-func main() {
 	options, err := cli.ParseFlags()
 	if err != nil {
 		log.Fatal(err)
@@ -39,6 +37,10 @@ func main() {
 		log.Fatalf("Cache init error: %s", err)
 	}
 
+	installDependencies(env, caches, options)
+}
+
+func installDependencies(env string, caches []cache.Cacher, options *cli.Options) {
 	if options.Verbose {
 		fmt.Println("npmi-go start")
 	}
@@ -48,7 +50,134 @@ func main() {
 		log.Fatalf("Can't hash lockfile: %v", err)
 	}
 
-	key := createCacheKey(env, hash, options.PrecacheCmd)
+	cacheKey := createCacheKey(env, hash, options.PrecacheCmd)
+	installedFromCache := tryToInstallFromCache(cacheKey, caches, options)
+	isInstallationFromNpmRequired := options.Force || !installedFromCache
+
+	if isInstallationFromNpmRequired {
+		if options.Verbose {
+			fmt.Println("Install start")
+			if options.Force && installedFromCache {
+				fmt.Println("NOTE: Cache was a HIT, install is forced")
+			}
+		}
+		tryToInstallFromNpm(cacheKey, caches, options)
+	}
+
+	if options.Verbose {
+		fmt.Println("npmi-go complete")
+	}
+}
+
+func tryToInstallFromNpm(key string, caches []cache.Cacher, options *cli.Options) {
+	if options.Verbose {
+		fmt.Println("Install(npm).InstallPackages start")
+	}
+
+	stdout, stderr, err := npmi.InstallPackages()
+	if err != nil {
+		log.Fatalf("Install(npm).InstallPackages error: %v: %s", err, stderr)
+	}
+
+	if options.Verbose {
+		fmt.Printf("Install(npm).InstallPackages complete: success: %s\n", stdout)
+	}
+
+	runPreCacheCommand(options)
+
+	if !files.IsExistingDir(modulesDirectory) {
+		log.Fatalf("Post-install: Modules directory not present after NPM install: %s", modulesDirectory)
+	}
+	if options.Verbose {
+		fmt.Println("Install complete")
+	}
+
+	filename := createTarball(key, options)
+	storeTarballInCache(key, filename, caches, options)
+}
+
+func storeTarballInCache(cacheKey string, filename string, caches []cache.Cacher, options *cli.Options) {
+	if options.Verbose {
+		fmt.Println("Cache start")
+	}
+
+	for _, cache := range caches {
+		if options.Verbose {
+			fmt.Printf("Cache(%s).Open start\n", cache)
+		}
+
+		f, err := os.Open(filename)
+		if err != nil {
+			log.Fatalf("Cache(%s).Open error: %s", cache, err)
+		}
+		defer f.Close()
+
+		if options.Verbose {
+			fmt.Printf("Cache(%s).Open complete\n", cache)
+			fmt.Printf("Cache(%s).Put start\n", cache)
+		}
+		err = cache.Put(cacheKey, f)
+		if err != nil {
+			log.Fatalf("Cache(%s).Put error: %s", cache, err)
+		}
+		if options.Verbose {
+			fmt.Printf("Cache(%s).Put complete\n", cache)
+		}
+	}
+	if options.Verbose {
+		fmt.Println("Cache complete")
+	}
+}
+
+func createTarball(key string, options *cli.Options) string {
+	filename := generateTarballName(key)
+
+	if options.Verbose {
+		fmt.Println("Archive start")
+		fmt.Printf("Archive creating %s\n", filename)
+	}
+	err := archive.Archive(filename, modulesDirectory)
+	if err != nil {
+		log.Fatalf("Archive failed: %s", err)
+	}
+
+	// Remove temp file when done
+	defer func() {
+		err := os.Remove(filename)
+		if err != nil {
+			log.Fatalf("Post-Archive: Could not remove temporary archive: %v", err)
+		}
+		if options.Verbose {
+			fmt.Printf("Post-Archive: Removed temporary archive %s", filename)
+		}
+	}()
+
+	if options.Verbose {
+		fmt.Println("Archive complete")
+	}
+	return filename
+}
+
+func generateTarballName(key string) string {
+	return fmt.Sprintf("modules-%s.tar.gz", key)
+}
+
+func runPreCacheCommand(options *cli.Options) {
+	if options.PrecacheCmd != "" {
+		if options.Verbose {
+			fmt.Println("Install(npm).InstallPackages start")
+		}
+		stdout, stderr, err := npmi.RunPrecacheCommand(options.PrecacheCmd)
+		if err != nil {
+			log.Fatalf("Install(npm).PreCache error: %v: %s", err, stderr)
+		}
+		if options.Verbose {
+			fmt.Printf("Install(npm).PreCache complete: success: %s\n", stdout)
+		}
+	}
+}
+
+func tryToInstallFromCache(key string, caches []cache.Cacher, options *cli.Options) bool {
 
 	if options.Verbose {
 		fmt.Printf("Lookup start, looking for key %s\n", key)
@@ -60,7 +189,7 @@ func main() {
 			fmt.Printf("Lookup(%s).Has start\n", cache)
 		}
 
-		hit, err = cache.Has(key)
+		hit, err := cache.Has(key)
 		if err != nil {
 			log.Fatalf("Lookup(%s).Has error: %s", cache, err)
 		}
@@ -122,104 +251,7 @@ func main() {
 	if options.Verbose {
 		fmt.Println("Lookup complete")
 	}
-
-	if options.Force || !hit {
-		if options.Verbose {
-			fmt.Println("Install start")
-			if options.Force && hit {
-				fmt.Println("NOTE: Cache was a HIT, install is forced")
-			}
-		}
-
-		if options.Verbose {
-			fmt.Println("Install(npm).InstallPackages start")
-		}
-
-		stdout, stderr, err := npmi.InstallPackages()
-		if err != nil {
-			log.Fatalf("Install(npm).InstallPackages error: %v: %s", err, stderr)
-		}
-
-		if options.Verbose {
-			fmt.Printf("Install(npm).InstallPackages complete: success: %s\n", stdout)
-		}
-
-		if options.PrecacheCmd != "" {
-			if options.Verbose {
-				fmt.Println("Install(npm).InstallPackages start")
-			}
-			stdout, stderr, err = npmi.RunPrecacheCommand(options.PrecacheCmd)
-			if err != nil {
-				log.Fatalf("Install(npm).PreCache error: %v: %s", err, stderr)
-			}
-			if options.Verbose {
-				fmt.Printf("Install(npm).PreCache complete: success: %s\n", stdout)
-			}
-		}
-
-		if !files.IsExistingDir(modulesDirectory) {
-			log.Fatalf("Post-install: Modules directory not present after NPM install: %s", modulesDirectory)
-		}
-		if options.Verbose {
-			fmt.Println("Install complete")
-		}
-		filename := fmt.Sprintf("modules-%s.tar.gz", key)
-		if options.Verbose {
-			fmt.Println("Archive start")
-			fmt.Printf("Archive creating %s\n", filename)
-		}
-		err = archive.Archive(filename, modulesDirectory)
-		if err != nil {
-			log.Fatalf("Archive failed: %s", err)
-		}
-
-		// Remove temp file when done
-		defer func() {
-			err := os.Remove(filename)
-			if err != nil {
-				log.Fatalf("Post-Archive: Could not remove temporary archive: %v", err)
-			}
-			if options.Verbose {
-				fmt.Printf("Post-Archive: Removed temporary archive %s", filename)
-			}
-		}()
-
-		if options.Verbose {
-			fmt.Println("Archive complete")
-			fmt.Println("Cache start")
-		}
-
-		for _, cache := range caches {
-			if options.Verbose {
-				fmt.Printf("Cache(%s).Open start\n", cache)
-			}
-
-			f, err := os.Open(filename)
-			if err != nil {
-				log.Fatalf("Cache(%s).Open error: %s", cache, err)
-			}
-			defer f.Close()
-
-			if options.Verbose {
-				fmt.Printf("Cache(%s).Open complete\n", cache)
-				fmt.Printf("Cache(%s).Put start\n", cache)
-			}
-			err = cache.Put(key, f)
-			if err != nil {
-				log.Fatalf("Cache(%s).Put error: %s", cache, err)
-			}
-			if options.Verbose {
-				fmt.Printf("Cache(%s).Put complete\n", cache)
-			}
-		}
-		if options.Verbose {
-			fmt.Println("Cache complete")
-		}
-	}
-
-	if options.Verbose {
-		fmt.Println("npmi-go complete")
-	}
+	return hit
 }
 
 func createCacheKey(env string, hash string, precacheCmd string) string {
