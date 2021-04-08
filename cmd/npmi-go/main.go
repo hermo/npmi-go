@@ -131,7 +131,10 @@ func storeArchiveInCache(cacheKey string, archiveFilename string, caches []cache
 	verboseConsole.Println("Cache.OpenArchive complete")
 
 	for _, cache := range caches {
-		archiveFile.Seek(0, 0)
+		_, err := archiveFile.Seek(0, 0)
+		if err != nil {
+			log.Fatalf("Cache(%s).ArchiveSeek error: %s", cache, err)
+		}
 		verboseConsole.Printf("Cache(%s).Put start\n", cache)
 		err = cache.Put(cacheKey, archiveFile)
 		if err != nil {
