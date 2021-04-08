@@ -3,8 +3,11 @@ package npmi
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/hermo/npmi-go/pkg/cmd"
@@ -113,6 +116,50 @@ func TestDeterminePlatform(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("DeterminePlatform() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func getFakePathRoot() string {
+	return "../../test/fake_path"
+}
+
+func GetDirectoryInFakePath(name string) (string, error) {
+	path := path.Join(getFakePathRoot(), name)
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("Invalid Fake path: %v", err)
+	}
+	stat, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("Can't stat Fake path: %v", err)
+	}
+	if stat.IsDir() == false {
+		return "", fmt.Errorf("Fake path is not a directory: %v", err)
+	}
+	return path, nil
+}
+
+func TestInitNodeBinaries(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{"Both binaries in path", "both", false},
+		{"NPM only", "npm_only", true},
+		{"Node only", "node_only", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, err := GetDirectoryInFakePath(tt.path)
+			if err != nil {
+				t.Errorf("InitNodeBinaries() setup error = %v", err)
+			}
+			os.Setenv("PATH", path)
+			if err := InitNodeBinaries(); (err != nil) != tt.wantErr {
+				t.Errorf("InitNodeBinaries() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
