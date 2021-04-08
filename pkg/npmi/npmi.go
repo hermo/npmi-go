@@ -21,8 +21,8 @@ func init() {
 	runner = cmd.NewRunner()
 }
 
-// DeterminePlatform determines the Node.js runtime platform and mode
-func DeterminePlatform() (string, error) {
+// DeterminePlatformKey determines the Node.js runtime platform and mode
+func DeterminePlatformKey() (string, error) {
 	env, stdErr, err := runner.RunCommand(nodeBinary, "-p", `process.version + "-" + process.platform + "-" + process.arch`)
 	if err != nil {
 		return stdErr, err
@@ -42,8 +42,8 @@ func isNodeInProductionMode() bool {
 	return os.Getenv("NODE_ENV") == "production"
 }
 
-// InitNodeBinaries makes sure that required Node.js binaries are present
-func InitNodeBinaries() error {
+// LocateRequiredBinaries makes sure that required Node.js binaries are present
+func LocateRequiredBinaries() error {
 	var err error
 	nodeBinary, err = exec.LookPath("node")
 	if err != nil {

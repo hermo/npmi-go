@@ -25,13 +25,13 @@ type LocalCacheOptions struct {
 
 // Options describes the runtime configuration
 type Options struct {
-	Verbose       bool `env:"NPMI_VERBOSE"`
-	Force         bool `env:"NPMI_FORCE"`
-	UseLocalCache bool `env:"NPMI_LOCAL"`
-	UseMinioCache bool `env:"NPMI_MINIO"`
-	MinioCache    *MinioCacheOptions
-	LocalCache    *LocalCacheOptions
-	PrecacheCmd   string `env:"NPMI_PRECACHE"`
+	Verbose         bool `env:"NPMI_VERBOSE"`
+	Force           bool `env:"NPMI_FORCE"`
+	UseLocalCache   bool `env:"NPMI_LOCAL"`
+	UseMinioCache   bool `env:"NPMI_MINIO"`
+	MinioCache      *MinioCacheOptions
+	LocalCache      *LocalCacheOptions
+	PrecacheCommand string `env:"NPMI_PRECACHE"`
 }
 
 var (
@@ -79,11 +79,11 @@ OPTIONS:
 // ParseFlags parses command line flags
 func ParseFlags() (*Options, error) {
 	options := &Options{
-		Verbose:       false,
-		Force:         false,
-		UseLocalCache: true,
-		UseMinioCache: false,
-		PrecacheCmd:   "",
+		Verbose:         false,
+		Force:           false,
+		UseLocalCache:   true,
+		UseMinioCache:   false,
+		PrecacheCommand: "",
 	}
 	localCache := &LocalCacheOptions{
 		Dir: os.TempDir(),
@@ -120,7 +120,7 @@ func ParseFlags() (*Options, error) {
 	flag.StringVar(&minioCache.SecretAccessKey, "minio-secret-access-key", minioCache.SecretAccessKey, "Minio secret access key")
 	flag.StringVar(&minioCache.Bucket, "minio-bucket", minioCache.Bucket, "Minio Bucket")
 	flag.BoolVar(&minioCache.UseTLS, "minio-tls", minioCache.UseTLS, "Use TLS to access Minio cache")
-	flag.StringVar(&options.PrecacheCmd, "precache", options.PrecacheCmd, "Run the following shell command before caching packages")
+	flag.StringVar(&options.PrecacheCommand, "precache", options.PrecacheCommand, "Run the following shell command before caching packages")
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), usage, version, commit, date)

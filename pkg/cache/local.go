@@ -19,7 +19,7 @@ func NewLocalCache(dir string) (Cacher, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("No cache directory given")
 	}
-	if !files.IsExistingDir(dir) {
+	if !files.DirectoryExists(dir) {
 		return nil, fmt.Errorf("%s is not a valid directory", dir)
 	}
 	return &LocalCache{dir}, nil

@@ -74,7 +74,7 @@ func (r *SpyRunner) RunShellCommand(commandLine string) (stdout string, stderr s
 	return r.Stdout, r.Stderr, r.Error
 }
 
-func TestDeterminePlatform(t *testing.T) {
+func TestDeterminePlatformKey(t *testing.T) {
 
 	tests := []struct {
 		name    string
@@ -109,7 +109,7 @@ func TestDeterminePlatform(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			os.Setenv("NODE_ENV", tt.nodeEnv)
 			runner = tt.runner
-			got, err := DeterminePlatform()
+			got, err := DeterminePlatformKey()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("DeterminePlatform() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -141,7 +141,7 @@ func GetDirectoryInFakePath(name string) (string, error) {
 	return path, nil
 }
 
-func TestInitNodeBinaries(t *testing.T) {
+func TestLocateRequiredBinaries(t *testing.T) {
 	tests := []struct {
 		name    string
 		path    string
@@ -158,7 +158,7 @@ func TestInitNodeBinaries(t *testing.T) {
 				t.Errorf("InitNodeBinaries() setup error = %v", err)
 			}
 			os.Setenv("PATH", path)
-			if err := InitNodeBinaries(); (err != nil) != tt.wantErr {
+			if err := LocateRequiredBinaries(); (err != nil) != tt.wantErr {
 				t.Errorf("InitNodeBinaries() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

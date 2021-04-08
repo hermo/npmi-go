@@ -2,8 +2,8 @@ package files
 
 import "os"
 
-// IsExistingDir determines if a given path exists and is a directory or not
-func IsExistingDir(path string) bool {
+// DirectoryExists determines if a given path exists and is a directory or not
+func DirectoryExists(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
