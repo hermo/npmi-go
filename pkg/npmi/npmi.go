@@ -14,17 +14,18 @@ import (
 var (
 	nodeBinary string
 	npmBinary  string
+	runner     cmd.Runner
 )
+
+func init() {
+	runner = cmd.NewRunner()
+}
 
 // DeterminePlatform determines the Node.js runtime platform and mode
 func DeterminePlatform() (string, error) {
-	if nodeBinary == "" {
-		return "", fmt.Errorf("DeterminePlatform: InitNodeBinaries not run")
-	}
-
-	env, _, err := cmd.RunCommand(nodeBinary, "-p", `process.version + "-" + process.platform + "-" + process.arch`)
+	env, stdErr, err := runner.RunCommand(nodeBinary, "-p", `process.version + "-" + process.platform + "-" + process.arch`)
 	if err != nil {
-		return "", err
+		return stdErr, err
 	}
 
 	if isNodeInProductionMode() {
@@ -83,13 +84,13 @@ func hashInput(r io.Reader) (string, error) {
 // InstallPackages installs packages from NPM
 func InstallPackages() (stdout string, stderr string, err error) {
 	if isNodeInProductionMode() {
-		return cmd.RunCommand(npmBinary, "ci", "--production", "--loglevel", "error", "--progress", "false")
+		return runner.RunCommand(npmBinary, "ci", "--production", "--loglevel", "error", "--progress", "false")
 	} else {
-		return cmd.RunCommand(npmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
+		return runner.RunCommand(npmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
 	}
 }
 
 // RunPrecacheCommand runs a given command before inserting freshly installed NPM deps into cache
 func RunPrecacheCommand(commandLine string) (stdout string, stderr string, err error) {
-	return cmd.RunShellCommand(commandLine)
+	return runner.RunShellCommand(commandLine)
 }
