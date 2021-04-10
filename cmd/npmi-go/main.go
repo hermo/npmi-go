@@ -18,46 +18,48 @@ const (
 )
 
 func main() {
-	n := npmi.NewInstaller()
-
-	if err := n.LocateRequiredBinaries(); err != nil {
-		log.Fatal(err)
-	}
-
 	options, err := cli.ParseFlags()
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	m := NewMain(options)
-	m.Run(n)
+	m.Run()
 }
 
 type Main struct {
 	options          *cli.Options
+	nodeConfig       *npmi.NodeConfig
 	verboseConsole   cli.ConsoleWriter
 	caches           []cache.Cacher
 	modulesDirectory string
 	lockFile         string
-	n                *npmi.Installer
+	installer        *npmi.Installer
 }
 
 func NewMain(options *cli.Options) *Main {
+	nodeConfig := npmi.NewNodeConfig()
+	if err := nodeConfig.Run(); err != nil {
+		log.Fatal(err)
+	}
+
+	installer := npmi.NewInstaller(nodeConfig)
+
 	return &Main{
 		modulesDirectory: DefaultModulesDirectory,
 		lockFile:         DefaultLockFile,
 		options:          options,
+		nodeConfig:       nodeConfig,
 		verboseConsole:   cli.NewConsole(options.Verbose),
+		installer:        installer,
 	}
 }
 
-func (m *Main) Run(n *npmi.Installer) {
-	m.n = n
+func (m *Main) Run() {
 	if err := m.initCaches(); err != nil {
 		log.Fatalf("Cache init error: %s", err)
 	}
 
-	platformKey, err := n.DeterminePlatformKey()
+	platform, err := m.nodeConfig.GetPlatform()
 	if err != nil {
 		log.Fatalf("Can't determine Node.js version: %v", err)
 	}
@@ -69,7 +71,7 @@ func (m *Main) Run(n *npmi.Installer) {
 		log.Fatalf("Can't hash lockfile: %v", err)
 	}
 
-	cacheKey := m.createCacheKey(platformKey, lockFileHash)
+	cacheKey := m.createCacheKey(platform, lockFileHash)
 	installedFromCache := m.tryToInstallFromCache(cacheKey)
 	isInstallationFromNpmRequired := m.options.Force || !installedFromCache
 
@@ -87,7 +89,7 @@ func (m *Main) Run(n *npmi.Installer) {
 func (m *Main) installFromNpm(cacheKey string) {
 	m.verboseConsole.Println("Install(npm).InstallPackages start")
 
-	stdout, stderr, err := m.n.InstallPackages()
+	stdout, stderr, err := m.installer.Run()
 	if err != nil {
 		log.Fatalf("Install(npm).InstallPackages error: %v: %s", err, stderr)
 	}
@@ -170,7 +172,7 @@ func (m *Main) runPreCacheCommand() {
 
 	m.verboseConsole.Println("Install(npm).InstallPackages start")
 
-	stdout, stderr, err := m.n.RunPrecacheCommand(m.options.PrecacheCommand)
+	stdout, stderr, err := m.installer.RunPrecacheCommand(m.options.PrecacheCommand)
 	if err != nil {
 		log.Fatalf("Install(npm).PreCache error: %v: %s", err, stderr)
 	}

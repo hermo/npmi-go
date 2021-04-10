@@ -8,11 +8,6 @@ import (
 	"strings"
 )
 
-// isNodeInProductionMode determines whether or not Node is running in production mode
-func isNodeInProductionMode() bool {
-	return os.Getenv("NODE_ENV") == "production"
-}
-
 // HashFile hashes a file using SHA-256
 func HashFile(filename string) (string, error) {
 	f, err := os.Open(filename)

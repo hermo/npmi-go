@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hermo/npmi-go/pkg/cmd"
@@ -26,7 +27,7 @@ func (r *SpyRunner) RunShellCommand(commandLine string) (stdout string, stderr s
 	return r.Stdout, r.Stderr, r.Error
 }
 
-func TestDeterminePlatformKey(t *testing.T) {
+func TestNodeConfig_GetPlatform(t *testing.T) {
 
 	tests := []struct {
 		name    string
@@ -59,16 +60,16 @@ func TestDeterminePlatformKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			n := NewInstaller()
 			os.Setenv("NODE_ENV", tt.nodeEnv)
-			n.Runner = tt.runner
-			got, err := n.DeterminePlatformKey()
+			nc := NewNodeConfig()
+			nc.Runner = tt.runner
+			got, err := nc.GetPlatform()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("DeterminePlatform() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GetPlatform() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("DeterminePlatform() = %v, want %v", got, tt.want)
+				t.Errorf("GetPlatform() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -94,7 +95,7 @@ func GetDirectoryInFakePath(name string) (string, error) {
 	return path, nil
 }
 
-func TestLocateRequiredBinaries(t *testing.T) {
+func TestNodeConfig_Run(t *testing.T) {
 	tests := []struct {
 		name    string
 		path    string
@@ -106,14 +107,24 @@ func TestLocateRequiredBinaries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			n := NewInstaller()
 			path, err := GetDirectoryInFakePath(tt.path)
-			if err != nil {
-				t.Errorf("InitNodeBinaries() setup error = %v", err)
-			}
 			os.Setenv("PATH", path)
-			if err := n.LocateRequiredBinaries(); (err != nil) != tt.wantErr {
-				t.Errorf("InitNodeBinaries() error = %v, wantErr %v", err, tt.wantErr)
+			nc := NewNodeConfig()
+			if err != nil {
+				t.Errorf("Run() setup error = %v", err)
+			}
+			if err := nc.Run(); (err != nil) != tt.wantErr {
+				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.wantErr == false {
+				if strings.Index(nc.NodeBinary, path) != 0 {
+					t.Errorf("NodeBinary path %v does not begin with %v", nc.NodeBinary, path)
+				}
+
+				if strings.Index(nc.NpmBinary, path) != 0 {
+					t.Errorf("NpmBinary path %v does not begin with %v", nc.NpmBinary, path)
+				}
 			}
 		})
 	}

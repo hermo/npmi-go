@@ -1,31 +1,49 @@
 package npmi
 
 import (
+	"os"
 	"os/exec"
 
 	"github.com/hermo/npmi-go/pkg/cmd"
 )
 
-type Installer struct {
-	nodeBinary string
-	npmBinary  string
-	Runner     cmd.Runner
+type NodeConfig struct {
+	NodeBinary     string
+	NpmBinary      string
+	ProductionMode bool
+	Runner         cmd.Runner
 }
 
-func NewInstaller() *Installer {
-	return &Installer{
-		Runner: cmd.NewRunner(),
+func NewNodeConfig() *NodeConfig {
+	return &NodeConfig{
+		Runner:         cmd.NewRunner(),
+		ProductionMode: isNodeInProductionMode(),
 	}
 }
 
-// DeterminePlatformKey determines the Node.js runtime platform and mode
-func (n *Installer) DeterminePlatformKey() (string, error) {
-	env, stdErr, err := n.Runner.RunCommand(n.nodeBinary, "-p", `process.version + "-" + process.platform + "-" + process.arch`)
+// Run makes sure that required Node.js binaries are present
+func (n *NodeConfig) Run() error {
+	var err error
+	n.NodeBinary, err = exec.LookPath("node")
+	if err != nil {
+		return err
+	}
+
+	n.NpmBinary, err = exec.LookPath("npm")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetPlatform determines the Node.js runtime platform and mode
+func (n *NodeConfig) GetPlatform() (string, error) {
+	env, stdErr, err := n.Runner.RunCommand(n.NodeBinary, "-p", `process.version + "-" + process.platform + "-" + process.arch`)
 	if err != nil {
 		return stdErr, err
 	}
 
-	if isNodeInProductionMode() {
+	if n.ProductionMode {
 		env += "-prod"
 	} else {
 		env += "-dev"
@@ -34,27 +52,29 @@ func (n *Installer) DeterminePlatformKey() (string, error) {
 	return env, nil
 }
 
-// LocateRequiredBinaries makes sure that required Node.js binaries are present
-func (n *Installer) LocateRequiredBinaries() error {
-	var err error
-	n.nodeBinary, err = exec.LookPath("node")
-	if err != nil {
-		return err
-	}
-
-	n.npmBinary, err = exec.LookPath("npm")
-	if err != nil {
-		return err
-	}
-	return nil
+type Installer struct {
+	config *NodeConfig
+	Runner cmd.Runner
 }
 
-// InstallPackages installs packages from NPM
-func (n *Installer) InstallPackages() (stdout string, stderr string, err error) {
-	if isNodeInProductionMode() {
-		return n.Runner.RunCommand(n.npmBinary, "ci", "--production", "--loglevel", "error", "--progress", "false")
+func NewInstaller(config *NodeConfig) *Installer {
+	return &Installer{
+		config: config,
+		Runner: cmd.NewRunner(),
+	}
+}
+
+// isNodeInProductionMode determines whether or not Node is running in production mode
+func isNodeInProductionMode() bool {
+	return os.Getenv("NODE_ENV") == "production"
+}
+
+// Run installs packages from NPM
+func (n *Installer) Run() (stdout string, stderr string, err error) {
+	if n.config.ProductionMode {
+		return n.Runner.RunCommand(n.config.NpmBinary, "ci", "--production", "--loglevel", "error", "--progress", "false")
 	} else {
-		return n.Runner.RunCommand(n.npmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
+		return n.Runner.RunCommand(n.config.NpmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
 	}
 }
 
