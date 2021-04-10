@@ -18,7 +18,9 @@ const (
 )
 
 func main() {
-	if err := npmi.LocateRequiredBinaries(); err != nil {
+	n := npmi.NewInstaller()
+
+	if err := n.LocateRequiredBinaries(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -28,7 +30,7 @@ func main() {
 	}
 
 	m := NewMain(options)
-	m.Run()
+	m.Run(n)
 }
 
 type Main struct {
@@ -37,6 +39,7 @@ type Main struct {
 	caches           []cache.Cacher
 	modulesDirectory string
 	lockFile         string
+	n                *npmi.Installer
 }
 
 func NewMain(options *cli.Options) *Main {
@@ -48,12 +51,13 @@ func NewMain(options *cli.Options) *Main {
 	}
 }
 
-func (m *Main) Run() {
+func (m *Main) Run(n *npmi.Installer) {
+	m.n = n
 	if err := m.initCaches(); err != nil {
 		log.Fatalf("Cache init error: %s", err)
 	}
 
-	platformKey, err := npmi.DeterminePlatformKey()
+	platformKey, err := n.DeterminePlatformKey()
 	if err != nil {
 		log.Fatalf("Can't determine Node.js version: %v", err)
 	}
@@ -83,7 +87,7 @@ func (m *Main) Run() {
 func (m *Main) installFromNpm(cacheKey string) {
 	m.verboseConsole.Println("Install(npm).InstallPackages start")
 
-	stdout, stderr, err := npmi.InstallPackages()
+	stdout, stderr, err := m.n.InstallPackages()
 	if err != nil {
 		log.Fatalf("Install(npm).InstallPackages error: %v: %s", err, stderr)
 	}
@@ -166,7 +170,7 @@ func (m *Main) runPreCacheCommand() {
 
 	m.verboseConsole.Println("Install(npm).InstallPackages start")
 
-	stdout, stderr, err := npmi.RunPrecacheCommand(m.options.PrecacheCommand)
+	stdout, stderr, err := m.n.RunPrecacheCommand(m.options.PrecacheCommand)
 	if err != nil {
 		log.Fatalf("Install(npm).PreCache error: %v: %s", err, stderr)
 	}
