@@ -6,20 +6,19 @@ import (
 	"strings"
 )
 
-// Runner can run external commands, possibly shell commands
+// Runner can run external commands and shell commands
 type Runner interface {
 	RunCommand(name string, args ...string) (stdout string, stderr string, err error)
 	RunShellCommand(commandLine string) (stdout string, stderr string, err error)
 }
 
-type DefaultRunner struct{}
+type defaultRunner struct{}
 
 func NewRunner() Runner {
-	return &DefaultRunner{}
+	return &defaultRunner{}
 }
 
-// RunCommand runs a command
-func (r *DefaultRunner) RunCommand(name string, args ...string) (stdout string, stderr string, err error) {
+func (r *defaultRunner) RunCommand(name string, args ...string) (stdout string, stderr string, err error) {
 	cmd := exec.Command(name, args...)
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer

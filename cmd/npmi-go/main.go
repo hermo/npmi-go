@@ -17,15 +17,6 @@ const (
 	DefaultLockFile         = "package-lock.json"
 )
 
-func main() {
-	options, err := cli.ParseFlags()
-	if err != nil {
-		log.Fatal(err)
-	}
-	m := NewMain(options)
-	m.Run()
-}
-
 type Main struct {
 	options          *cli.Options
 	nodeConfig       *npmi.NodeConfig
@@ -36,13 +27,33 @@ type Main struct {
 	installer        *npmi.Installer
 }
 
-func NewMain(options *cli.Options) *Main {
-	nodeConfig := npmi.NewNodeConfig()
-	if err := nodeConfig.Run(); err != nil {
+func main() {
+	options, err := cli.ParseFlags()
+	if err != nil {
 		log.Fatal(err)
 	}
 
-	installer := npmi.NewInstaller(nodeConfig)
+	m, err := NewMain(options)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = m.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func NewMain(options *cli.Options) (*Main, error) {
+	nodeConfig := npmi.NewNodeConfig()
+	if err := nodeConfig.Run(); err != nil {
+		return nil, err
+	}
+
+	caches, err := initCaches(options)
+	if err != nil {
+		return nil, fmt.Errorf("cache init error: %v", err)
+	}
 
 	return &Main{
 		modulesDirectory: DefaultModulesDirectory,
@@ -50,29 +61,34 @@ func NewMain(options *cli.Options) *Main {
 		options:          options,
 		nodeConfig:       nodeConfig,
 		verboseConsole:   cli.NewConsole(options.Verbose),
-		installer:        installer,
-	}
+		installer:        npmi.NewInstaller(nodeConfig),
+		caches:           caches,
+	}, nil
 }
 
-func (m *Main) Run() {
-	if err := m.initCaches(); err != nil {
-		log.Fatalf("Cache init error: %s", err)
-	}
+func (m *Main) Run() error {
+	m.verboseConsole.Println("npmi-go start")
 
 	platform, err := m.nodeConfig.GetPlatform()
 	if err != nil {
-		log.Fatalf("Can't determine Node.js version: %v", err)
+		return fmt.Errorf("can't determine Node.js version: %v", err)
 	}
-
-	m.verboseConsole.Println("npmi-go start")
 
 	lockFileHash, err := npmi.HashFile(m.lockFile)
 	if err != nil {
-		log.Fatalf("Can't hash lockfile: %v", err)
+		return fmt.Errorf("can't hash lockfile: %v", err)
 	}
 
-	cacheKey := m.createCacheKey(platform, lockFileHash)
-	installedFromCache := m.tryToInstallFromCache(cacheKey)
+	cacheKey, err := createCacheKey(platform, lockFileHash, m.options.PrecacheCommand)
+	if err != nil {
+		return fmt.Errorf("can't create cache key: %v", err)
+	}
+
+	installedFromCache, err := m.tryToInstallFromCache(cacheKey)
+	if err != nil {
+		return fmt.Errorf("can't install from cache: %v", err)
+	}
+
 	isInstallationFromNpmRequired := m.options.Force || !installedFromCache
 
 	if isInstallationFromNpmRequired {
@@ -80,33 +96,81 @@ func (m *Main) Run() {
 		if installedFromCache {
 			m.verboseConsole.Println("NOTE: Cache was a HIT, install is forced")
 		}
-		m.installFromNpm(cacheKey)
+		err = m.installFromNpm(cacheKey)
+		if err != nil {
+			return fmt.Errorf("can't install from NPM: %v", err)
+		}
 	}
 
 	m.verboseConsole.Println("npmi-go complete")
+	return nil
 }
 
-func (m *Main) installFromNpm(cacheKey string) {
+func initCaches(options *cli.Options) ([]cache.Cacher, error) {
+	var caches []cache.Cacher
+	if options.UseLocalCache {
+		cache, err := initLocalCache(options.LocalCache)
+		if err != nil {
+			return nil, err
+		}
+		caches = append(caches, cache)
+	}
+
+	if options.UseMinioCache {
+		cache, err := initMinioCache(options.MinioCache)
+		if err != nil {
+			return nil, err
+		}
+		caches = append(caches, cache)
+	}
+	return caches, nil
+}
+
+func createCacheKey(platformKey string, lockFileHash string, precacheCommand string) (string, error) {
+	cacheKey := fmt.Sprintf("%s-%s", platformKey, lockFileHash)
+	if precacheCommand == "" {
+		return cacheKey, nil
+	}
+	precacheHash, err := npmi.HashString(precacheCommand)
+	if err != nil {
+		return "", fmt.Errorf("could not hash precache command: %v", err)
+	}
+
+	cacheKey = fmt.Sprintf("%s-%s", cacheKey, precacheHash)
+	return cacheKey, nil
+}
+
+func (m *Main) installFromNpm(cacheKey string) error {
 	m.verboseConsole.Println("Install(npm).InstallPackages start")
 
 	stdout, stderr, err := m.installer.Run()
 	if err != nil {
-		log.Fatalf("Install(npm).InstallPackages error: %v: %s", err, stderr)
+		return fmt.Errorf("Install(npm).InstallPackages error: %v: %s", err, stderr)
 	}
 
 	m.verboseConsole.Printf("Install(npm).InstallPackages complete: success: %s\n", stdout)
 
-	m.runPreCacheCommand()
+	err = m.runPreCacheCommand()
+	if err != nil {
+		return fmt.Errorf("Install(npm).InstallPackages error: %v: %s", err, stderr)
+	}
 
 	if !files.DirectoryExists(m.modulesDirectory) {
-		log.Fatalf("Post-install: Modules directory not present after NPM install: %s", m.modulesDirectory)
+		return fmt.Errorf("post-install: Modules directory not present after NPM install: %s", m.modulesDirectory)
 	}
 	m.verboseConsole.Println("Install complete")
 
-	archiveFilename := m.createArchive(cacheKey)
+	archiveFilename, err := m.createArchive(cacheKey)
+	if err != nil {
+		return fmt.Errorf("Install(npm).CreateArchive error: %v: %s", err, stderr)
+	}
 	defer m.removeArchiveAfterCaching(archiveFilename)
 
-	m.storeArchiveInCache(cacheKey, archiveFilename)
+	err = m.storeArchiveInCache(cacheKey, archiveFilename)
+	if err != nil {
+		return fmt.Errorf("Install(npm).CreateArchive error: %v: %s", err, stderr)
+	}
+	return nil
 }
 
 func (m *Main) removeArchiveAfterCaching(archiveFilename string) {
@@ -118,32 +182,32 @@ func (m *Main) removeArchiveAfterCaching(archiveFilename string) {
 	m.verboseConsole.Printf("Post-Archive: Removed temporary archive %s\n", archiveFilename)
 }
 
-func (m *Main) createArchive(cacheKey string) string {
-	archiveFilename := createArchiveFilename(cacheKey)
+func (m *Main) createArchive(cacheKey string) (archiveFilename string, err error) {
+	archiveFilename = createArchiveFilename(cacheKey)
 
 	m.verboseConsole.Println("Archive start")
 	m.verboseConsole.Printf("Archive creating %s\n", archiveFilename)
 
-	err := archive.Create(archiveFilename, m.modulesDirectory)
+	err = archive.Create(archiveFilename, m.modulesDirectory)
 	if err != nil {
-		log.Fatalf("Archive failed: %s", err)
+		return "", fmt.Errorf("archive failed: %s", err)
 	}
 
 	m.verboseConsole.Println("Archive complete")
-	return archiveFilename
+	return archiveFilename, nil
 }
 
 func createArchiveFilename(cacheKey string) string {
 	return fmt.Sprintf("modules-%s.tar.gz", cacheKey)
 }
 
-func (m *Main) storeArchiveInCache(cacheKey string, archiveFilename string) {
+func (m *Main) storeArchiveInCache(cacheKey string, archiveFilename string) error {
 	m.verboseConsole.Println("Cache start")
 
 	m.verboseConsole.Println("Cache.OpenArchive start")
 	archiveFile, err := os.Open(archiveFilename)
 	if err != nil {
-		log.Fatalf("Cache.OpenArchive error: %s", err)
+		return fmt.Errorf("Cache.OpenArchive error: %s", err)
 	}
 	defer archiveFile.Close()
 	m.verboseConsole.Println("Cache.OpenArchive complete")
@@ -151,36 +215,38 @@ func (m *Main) storeArchiveInCache(cacheKey string, archiveFilename string) {
 	for _, cache := range m.caches {
 		_, err := archiveFile.Seek(0, 0)
 		if err != nil {
-			log.Fatalf("Cache(%s).ArchiveSeek error: %s", cache, err)
+			return fmt.Errorf("Cache(%s).ArchiveSeek error: %s", cache, err)
 		}
 		m.verboseConsole.Printf("Cache(%s).Put start\n", cache)
 		err = cache.Put(cacheKey, archiveFile)
 		if err != nil {
-			log.Fatalf("Cache(%s).Put error: %s", cache, err)
+			return fmt.Errorf("Cache(%s).Put error: %s", cache, err)
 		}
 
 		m.verboseConsole.Printf("Cache(%s).Put complete\n", cache)
 	}
 
 	m.verboseConsole.Println("Cache complete")
+	return nil
 }
 
-func (m *Main) runPreCacheCommand() {
+func (m *Main) runPreCacheCommand() error {
 	if m.options.PrecacheCommand == "" {
-		return
+		return nil
 	}
 
 	m.verboseConsole.Println("Install(npm).InstallPackages start")
 
 	stdout, stderr, err := m.installer.RunPrecacheCommand(m.options.PrecacheCommand)
 	if err != nil {
-		log.Fatalf("Install(npm).PreCache error: %v: %s", err, stderr)
+		return fmt.Errorf("Install(npm).PreCache error: %v: %s", err, stderr)
 	}
 
 	m.verboseConsole.Printf("Install(npm).PreCache complete: success: %s\n", stdout)
+	return nil
 }
 
-func (m *Main) tryToInstallFromCache(cacheKey string) (foundInCache bool) {
+func (m *Main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err error) {
 	m.verboseConsole.Printf("Lookup start, looking for cache key %s\n", cacheKey)
 
 	foundInCache = false
@@ -189,7 +255,7 @@ func (m *Main) tryToInstallFromCache(cacheKey string) (foundInCache bool) {
 
 		foundInCache, err := cache.Has(cacheKey)
 		if err != nil {
-			log.Fatalf("Lookup(%s).Has error: %s", cache, err)
+			return false, fmt.Errorf("Lookup(%s).Has error: %s", cache, err)
 		}
 
 		if !foundInCache {
@@ -202,7 +268,7 @@ func (m *Main) tryToInstallFromCache(cacheKey string) (foundInCache bool) {
 		m.verboseConsole.Printf("Lookup(%s).Get start\n", cache)
 		foundArchive, err := cache.Get(cacheKey)
 		if err != nil {
-			log.Fatalf("Lookup(%s).Get error: %s", cache, err)
+			return false, fmt.Errorf("Lookup(%s).Get error: %s", cache, err)
 		}
 
 		m.verboseConsole.Printf("Lookup(%s).Get complete\n", cache)
@@ -215,14 +281,14 @@ func (m *Main) tryToInstallFromCache(cacheKey string) (foundInCache bool) {
 
 		archiveManifest, err := archive.Extract(foundArchive)
 		if err != nil {
-			log.Fatalf("Lookup(%s).Extract error: %s", cache, err)
+			return false, fmt.Errorf("Lookup(%s).Extract error: %s", cache, err)
 		}
 
 		m.verboseConsole.Println("Cleanup start")
 
-		numRemoved, err := archive.RemoveFilesNotPresentInManifest(m.modulesDirectory, archiveManifest)
+		numRemoved, err := files.RemoveFilesNotPresentInManifest(m.modulesDirectory, archiveManifest)
 		if err != nil {
-			log.Fatalf("Cleanup error: %s", err)
+			return false, fmt.Errorf("cleanup error: %s", err)
 		}
 
 		m.verboseConsole.Printf("Cleanup complete, %d extraneous files removed\n", numRemoved)
@@ -233,40 +299,7 @@ func (m *Main) tryToInstallFromCache(cacheKey string) (foundInCache bool) {
 	}
 
 	m.verboseConsole.Println("Lookup complete")
-	return foundInCache
-}
-
-func (m *Main) createCacheKey(platformKey string, lockFileHash string) string {
-	cacheKey := fmt.Sprintf("%s-%s", platformKey, lockFileHash)
-	if m.options.PrecacheCommand != "" {
-		if precacheHash, err := npmi.HashString(m.options.PrecacheCommand); err != nil {
-			log.Fatalf("Could not hash precache command: %v", err)
-		} else {
-			cacheKey = fmt.Sprintf("%s-%s", cacheKey, precacheHash)
-		}
-	}
-	return cacheKey
-}
-
-func (m *Main) initCaches() error {
-	var caches []cache.Cacher
-	if m.options.UseLocalCache {
-		cache, err := initLocalCache(m.options.LocalCache)
-		if err != nil {
-			return err
-		}
-		caches = append(caches, cache)
-	}
-
-	if m.options.UseMinioCache {
-		cache, err := initMinioCache(m.options.MinioCache)
-		if err != nil {
-			return err
-		}
-		caches = append(caches, cache)
-	}
-	m.caches = caches
-	return nil
+	return foundInCache, nil
 }
 
 func initMinioCache(options *cli.MinioCacheOptions) (cache.Cacher, error) {

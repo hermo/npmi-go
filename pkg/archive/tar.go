@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-// Create creates an archive file containing the contents of src
+// Create an archive file containing the contents of directory src
 func Create(filename string, src string) error {
 	f, err := os.Create(filename)
 	if err != nil {
@@ -25,7 +25,7 @@ func Create(filename string, src string) error {
 	return nil
 }
 
-// Extract extracts files from an archive
+// Extract all files from an archive to current directory
 func Extract(reader io.Reader) ([]string, error) {
 	var manifest []string
 	gzr, err := gzip.NewReader(reader)
@@ -161,42 +161,6 @@ func createTarGz(src string, writers ...io.Writer) error {
 		// to wait until all operations have completed.
 		f.Close()
 
-		return nil
-	})
-}
-
-// RemoveFilesNotPresentInManifest compares a real directory tree with a list of
-// files to keep and removes extra files
-func RemoveFilesNotPresentInManifest(directory string, filesTokeep []string) (int, error) {
-	numRemoved := 0
-
-	// Convert manifest into a map
-	// TODO: Just create the manifest in map for to begin with
-	m := make(map[string]bool, len(filesTokeep))
-	for _, f := range filesTokeep {
-		m[f] = true
-	}
-
-	return numRemoved, filepath.Walk(directory, func(file string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// return on non-regular files (thanks to [kumo](https://medium.com/@komuw/just-like-you-did-fbdd7df829d3) for this suggested update)
-		// TODO: Add link support
-		if !fi.Mode().IsRegular() {
-			return nil
-		}
-
-		// Delete files not present in manifest
-		if !m[file] {
-			fmt.Printf("DEL: %s\n", file)
-			err = os.Remove(file)
-			if err != nil {
-				return err
-			}
-			numRemoved++
-		}
 		return nil
 	})
 }
