@@ -19,7 +19,7 @@ const (
 
 type Main struct {
 	options          *cli.Options
-	nodeConfig       *npmi.NodeConfig
+	platform         string
 	verboseConsole   cli.ConsoleWriter
 	caches           []cache.Cacher
 	modulesDirectory string
@@ -45,10 +45,14 @@ func main() {
 }
 
 func NewMain(options *cli.Options) (*Main, error) {
-	nodeConfig := npmi.NewNodeConfig()
-	if err := nodeConfig.Run(); err != nil {
+	builder := npmi.NewConfigBuilder()
+	builder.WithNodeAndNpmFromPath()
+	config, err := builder.Build()
+	if err != nil {
 		return nil, err
 	}
+
+	platform := config.GetPlatform()
 
 	caches, err := initCaches(options)
 	if err != nil {
@@ -59,9 +63,9 @@ func NewMain(options *cli.Options) (*Main, error) {
 		modulesDirectory: DefaultModulesDirectory,
 		lockFile:         DefaultLockFile,
 		options:          options,
-		nodeConfig:       nodeConfig,
 		verboseConsole:   cli.NewConsole(options.Verbose),
-		installer:        npmi.NewInstaller(nodeConfig),
+		platform:         platform,
+		installer:        npmi.NewInstaller(config),
 		caches:           caches,
 	}, nil
 }
@@ -69,17 +73,12 @@ func NewMain(options *cli.Options) (*Main, error) {
 func (m *Main) Run() error {
 	m.verboseConsole.Println("npmi-go start")
 
-	platform, err := m.nodeConfig.GetPlatform()
-	if err != nil {
-		return fmt.Errorf("can't determine Node.js version: %v", err)
-	}
-
 	lockFileHash, err := npmi.HashFile(m.lockFile)
 	if err != nil {
 		return fmt.Errorf("can't hash lockfile: %v", err)
 	}
 
-	cacheKey, err := createCacheKey(platform, lockFileHash, m.options.PrecacheCommand)
+	cacheKey, err := createCacheKey(m.platform, lockFileHash, m.options.PrecacheCommand)
 	if err != nil {
 		return fmt.Errorf("can't create cache key: %v", err)
 	}

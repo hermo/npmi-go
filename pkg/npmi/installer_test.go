@@ -7,9 +7,9 @@ import (
 func TestInstaller_Run(t *testing.T) {
 
 	runner := &SpyRunner{"v11.16.3-darwin-x64", "", nil}
-	nc := &NodeConfig{
-		Runner:         runner,
-		ProductionMode: false,
+	nc := &Config{
+		runner:         runner,
+		productionMode: false,
 	}
 	sut := NewInstaller(nc)
 
