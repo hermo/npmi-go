@@ -9,6 +9,7 @@ import (
 	"github.com/hermo/npmi-go/pkg/archive"
 	"github.com/hermo/npmi-go/pkg/cache"
 	"github.com/hermo/npmi-go/pkg/files"
+	"github.com/hermo/npmi-go/pkg/hash"
 	"github.com/hermo/npmi-go/pkg/npmi"
 )
 
@@ -73,7 +74,7 @@ func NewMain(options *cli.Options) (*Main, error) {
 func (m *Main) Run() error {
 	m.verboseConsole.Println("npmi-go start")
 
-	lockFileHash, err := npmi.HashFile(m.lockFile)
+	lockFileHash, err := hash.File(m.lockFile)
 	if err != nil {
 		return fmt.Errorf("can't hash lockfile: %v", err)
 	}
@@ -130,7 +131,7 @@ func createCacheKey(platformKey string, lockFileHash string, precacheCommand str
 	if precacheCommand == "" {
 		return cacheKey, nil
 	}
-	precacheHash, err := npmi.HashString(precacheCommand)
+	precacheHash, err := hash.String(precacheCommand)
 	if err != nil {
 		return "", fmt.Errorf("could not hash precache command: %v", err)
 	}

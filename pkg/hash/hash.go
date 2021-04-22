@@ -1,4 +1,4 @@
-package npmi
+package hash
 
 import (
 	"crypto/sha256"
@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// HashFile hashes a file using SHA-256
-func HashFile(filename string) (string, error) {
+// File hashes a file using SHA-256
+func File(filename string) (string, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return "", err
@@ -18,8 +18,8 @@ func HashFile(filename string) (string, error) {
 	return hashInput(f)
 }
 
-// HashString hashes a given string using SHA-256
-func HashString(str string) (string, error) {
+// String hashes a given string using SHA-256
+func String(str string) (string, error) {
 	return hashInput(strings.NewReader(str))
 }
 
