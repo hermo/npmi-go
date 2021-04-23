@@ -29,7 +29,7 @@ type configBuilder struct {
 
 func NewConfigBuilder() *configBuilder {
 	return &configBuilder{
-		productionModeDeterminator: isNodeInProductionMode,
+		productionModeDeterminator: defaultProductionModeDeterminator,
 		runner:                     cmd.NewRunner(),
 	}
 }
@@ -106,7 +106,7 @@ func determineNodeVersion(runner cmd.Runner, nodeBinary string) (string, error) 
 	return version, nil
 }
 
-// isNodeInProductionMode determines whether or not Node is running in production mode
-func isNodeInProductionMode() bool {
+// defaultProductionModeDeterminator determines whether or not Node is running in production mode
+func defaultProductionModeDeterminator() bool {
 	return os.Getenv("NODE_ENV") == "production"
 }
