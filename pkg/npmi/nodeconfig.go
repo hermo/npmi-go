@@ -30,6 +30,7 @@ type configBuilder struct {
 func NewConfigBuilder() *configBuilder {
 	return &configBuilder{
 		productionModeDeterminator: isNodeInProductionMode,
+		runner:                     cmd.NewRunner(),
 	}
 }
 
