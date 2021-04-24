@@ -1,6 +1,7 @@
 package npmi
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -10,19 +11,15 @@ import (
 type Config struct {
 	nodeBinary     string
 	npmBinary      string
-	platform       string
+	Platform       string
 	productionMode bool
 	runner         cmd.Runner
-}
-
-// GetPlatform determines the Node.js runtime platform and mode
-func (n *Config) GetPlatform() string {
-	return n.platform
 }
 
 type configBuilder struct {
 	nodeBinary                 string
 	npmBinary                  string
+	shouldFindBinariesInPath   bool
 	productionModeDeterminator func() bool
 	runner                     cmd.Runner
 }
@@ -34,10 +31,8 @@ func NewConfigBuilder() *configBuilder {
 	}
 }
 
-func (b *configBuilder) WithNodeAndNpmFromPath() error {
-	var err error
-	b.nodeBinary, b.npmBinary, err = findNodeBinariesInPath()
-	return err
+func (b *configBuilder) WithNodeAndNpmFromPath() {
+	b.shouldFindBinariesInPath = true
 }
 
 func (b *configBuilder) WithNodeBinary(nodeBinary string) {
@@ -57,6 +52,11 @@ func (b *configBuilder) WithProductionModeDeterminatorFunc(determinator func() b
 }
 
 func (b *configBuilder) Build() (*Config, error) {
+	if b.shouldFindBinariesInPath {
+		var err error
+		b.nodeBinary, b.npmBinary, err = findNodeBinariesInPath()
+		return nil, err
+	}
 	productionMode := b.productionModeDeterminator()
 	platform, err := getPlatform(b.runner, b.nodeBinary, productionMode)
 	if err != nil {
@@ -66,7 +66,7 @@ func (b *configBuilder) Build() (*Config, error) {
 		nodeBinary: b.nodeBinary,
 		npmBinary:  b.npmBinary,
 		runner:     b.runner,
-		platform:   platform,
+		Platform:   platform,
 	}, nil
 }
 
@@ -101,7 +101,7 @@ func getPlatform(runner cmd.Runner, nodeBinary string, productionMode bool) (str
 func determineNodeVersion(runner cmd.Runner, nodeBinary string) (string, error) {
 	version, stdErr, err := runner.RunCommand(nodeBinary, "-p", `process.version + "-" + process.platform + "-" + process.arch`)
 	if err != nil {
-		return stdErr, err
+		return stdErr, fmt.Errorf("can't run node from \"%s\": %v", nodeBinary, err)
 	}
 	return version, nil
 }

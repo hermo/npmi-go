@@ -16,7 +16,7 @@ type localCache struct {
 // NewLocalCache creates a Cacher, which stores data locally in a directory
 func NewLocalCache(dir string) (Cacher, error) {
 	if dir == "" {
-		return nil, fmt.Errorf("No cache directory given")
+		return nil, fmt.Errorf("no cache directory given")
 	}
 	if !files.DirectoryExists(dir) {
 		return nil, fmt.Errorf("%s is not a valid directory", dir)
@@ -45,6 +45,8 @@ func (cache *localCache) Put(key string, reader io.Reader) error {
 	if err != nil {
 		return nil
 	}
+
+	defer f.Close()
 	_, err = io.Copy(f, reader)
 	if err != nil {
 		return err

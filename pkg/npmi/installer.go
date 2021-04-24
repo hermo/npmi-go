@@ -1,25 +1,31 @@
 package npmi
 
+import "github.com/hermo/npmi-go/pkg/cmd"
+
 type Installer struct {
-	config *Config
+	npmBinary      string
+	productionMode bool
+	runner         cmd.Runner
 }
 
 func NewInstaller(config *Config) *Installer {
 	return &Installer{
-		config: config,
+		npmBinary:      config.npmBinary,
+		productionMode: config.productionMode,
+		runner:         config.runner,
 	}
 }
 
 // Run installs packages from NPM
-func (n *Installer) Run() (stdout string, stderr string, err error) {
-	if n.config.productionMode {
-		return n.config.runner.RunCommand(n.config.npmBinary, "ci", "--production", "--loglevel", "error", "--progress", "false")
+func (i *Installer) Run() (stdout string, stderr string, err error) {
+	if i.productionMode {
+		return i.runner.RunCommand(i.npmBinary, "ci", "--production", "--loglevel", "error", "--progress", "false")
 	} else {
-		return n.config.runner.RunCommand(n.config.npmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
+		return i.runner.RunCommand(i.npmBinary, "ci", "--dev", "--loglevel", "error", "--progress", "false")
 	}
 }
 
 // RunPrecacheCommand runs a given command before inserting freshly installed NPM deps into cache
-func (n *Installer) RunPrecacheCommand(commandLine string) (stdout string, stderr string, err error) {
-	return n.config.runner.RunShellCommand(commandLine)
+func (i *Installer) RunPrecacheCommand(commandLine string) (stdout string, stderr string, err error) {
+	return i.runner.RunShellCommand(commandLine)
 }
