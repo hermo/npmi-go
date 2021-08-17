@@ -55,7 +55,9 @@ func (b *configBuilder) Build() (*Config, error) {
 	if b.shouldFindBinariesInPath {
 		var err error
 		b.nodeBinary, b.npmBinary, err = findNodeBinariesInPath()
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 	productionMode := b.productionModeDeterminator()
 	platform, err := getPlatform(b.runner, b.nodeBinary, productionMode)
