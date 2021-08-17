@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"log"
@@ -6,18 +6,18 @@ import (
 	"github.com/hermo/npmi-go/pkg/npmi"
 )
 
-func main() {
+func Execute() {
 	options, err := ParseFlags()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	main, err := npmi.New(options)
+	m, err := npmi.New(options)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = main.Run()
+	err = m.Run()
 	if err != nil {
 		log.Fatal(err)
 	}

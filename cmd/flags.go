@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"flag"
@@ -55,9 +55,9 @@ OPTIONS:
 // ParseFlags parses command line flags
 func ParseFlags() (*npmi.Options, error) {
 	options := &npmi.Options{
-		Verbose:         false,
-		Force:           false,
-		UseLocalCache:   true,
+		Verbose: false,
+		Force:   false,
+
 		UseMinioCache:   false,
 		PrecacheCommand: "",
 	}
