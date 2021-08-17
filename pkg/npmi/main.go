@@ -56,13 +56,7 @@ func NewWithConfig(options *Options, config *Config) (*main, error) {
 
 func (m *main) RunAllSteps() error {
 	m.verboseConsole.Println("npmi-go start")
-
-	lockFileHash, err := hash.File(m.lockFile)
-	if err != nil {
-		return fmt.Errorf("can't hash lockfile: %v", err)
-	}
-
-	cacheKey, err := cache.CreateKey(m.platform, lockFileHash, m.options.PrecacheCommand)
+	cacheKey, err := m.createCacheKey()
 	if err != nil {
 		return fmt.Errorf("can't create cache key: %v", err)
 	}
@@ -87,6 +81,20 @@ func (m *main) RunAllSteps() error {
 
 	m.verboseConsole.Println("npmi-go complete")
 	return nil
+}
+
+func (m *main) createCacheKey() (string, error) {
+	lockFileHash, err := hash.File(m.lockFile)
+	if err != nil {
+		return "", fmt.Errorf("can't hash lockfile: %v", err)
+	}
+
+	cacheKey, err := cache.CreateKey(m.platform, lockFileHash, m.options.PrecacheCommand)
+	if err != nil {
+		return "", err
+	}
+	return cacheKey, nil
+
 }
 
 func initCaches(options *Options) ([]cache.Cacher, error) {
