@@ -12,6 +12,20 @@ Note that npmi-go is work-in-progress and should not be used in production.
 # Installation
 - Download a prebuilt binary from the [releases page](https://github.com/hermo/npmi-go/releases/latest)
 
+# Building
+
+## Quick & dirty
+Just run `go build` in the root directory to build `npmi-go` binary.
+
+## Goreleaser
+Dev builds for your system only may be built by using goreleaser:
+
+```
+goreleaser build --snapshot --rm-dist --single-target
+```
+
+The output will appear under `dist/`
+
 # Supported Caches
 
 ## Local
