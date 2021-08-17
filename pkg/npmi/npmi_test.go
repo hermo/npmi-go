@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hermo/npmi-go/pkg/cmd"
+	"github.com/hermo/npmi-go/pkg/files"
 )
 
 func Test_isNodeInProductionMode(t *testing.T) {
@@ -59,15 +60,27 @@ func TestNpmiCanBeCreated(t *testing.T) {
 }
 
 func TestNpmiCanBeRun(t *testing.T) {
-	testDataDir, err := filepath.Abs("../../testdata/cache")
-	os.Chdir("../../testdata")
+	err := os.Chdir("../../testdata")
 	if err != nil {
-		t.Fatalf("test cache dir not present: %v", err)
+		t.Fatalf("could not chdir to testdata: %v", err)
 	}
+
+	testDataCacheDir, err := filepath.Abs("cache")
+	if err != nil {
+		t.Fatalf("testdata/cache dir not present: %v", err)
+	}
+
+	// Ensure node_modules exists to avoid error from post-install sanity check
+	if !files.DirectoryExists("node_modules") {
+		if err = os.Mkdir("node_modules", 0600); err != nil {
+			t.Fatalf("node_modules not present and mkdir failed: %v", err)
+		}
+	}
+
 	options := &Options{
 		Verbose: true,
 		LocalCache: &LocalCacheOptions{
-			Dir: testDataDir,
+			Dir: testDataCacheDir,
 		},
 		UseLocalCache: true,
 	}
@@ -89,18 +102,22 @@ func TestNpmiCanBeRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// runner.Error = errors.New("Parsa")
 	err = m.RunAllSteps()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanCacheDir(t, testDataDir)
-	fmt.Println(runner.RunCommandCalls)
-	fmt.Println(runner.RunShellCommandCalls)
+	defer cleanCacheDir(t, testDataCacheDir)
+	fmt.Printf("RunCommand calls: %v\n", runner.RunCommandCalls)
+	fmt.Printf("RunShellCommandCalls: %v\n", runner.RunShellCommandCalls)
 
 	numRunCommandCalls := len(runner.RunCommandCalls)
 	if numRunCommandCalls != 2 {
 		t.Errorf("Expected %d RunCommand calls, got %d", 2, numRunCommandCalls)
+	}
+
+	numRunShellCommandCalls := len(runner.RunShellCommandCalls)
+	if numRunShellCommandCalls != 0 {
+		t.Errorf("Expected %d RunShellCommandCalls, got %d", 0, numRunShellCommandCalls)
 	}
 }
 
