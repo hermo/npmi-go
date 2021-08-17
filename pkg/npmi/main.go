@@ -19,7 +19,7 @@ const (
 
 type main struct {
 	caches           []cache.Cacher
-	installer        *Installer
+	installer        *NpmInstaller
 	lockFile         string
 	modulesDirectory string
 	options          *Options
@@ -51,7 +51,7 @@ func NewWithConfig(options *Options, config *Config) (*main, error) {
 		options:          options,
 		verboseConsole:   cli.NewConsole(options.Verbose),
 		platform:         config.Platform,
-		installer:        NewInstaller(config),
+		installer:        NewNpmInstaller(config),
 		caches:           caches,
 	}, nil
 }

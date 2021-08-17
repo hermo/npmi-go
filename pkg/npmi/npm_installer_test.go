@@ -6,7 +6,7 @@ import (
 	"github.com/hermo/npmi-go/pkg/cmd"
 )
 
-func TestInstaller_Run(t *testing.T) {
+func TestNpmInstaller_Run(t *testing.T) {
 
 	runner := &cmd.SpyRunner{
 		Stdout: "v11.16.3-darwin-x64",
@@ -17,7 +17,7 @@ func TestInstaller_Run(t *testing.T) {
 		runner:         runner,
 		productionMode: false,
 	}
-	sut := NewInstaller(nc)
+	sut := NewNpmInstaller(nc)
 
 	_, _, err := sut.Run()
 	if err != nil {

@@ -2,14 +2,14 @@ package npmi
 
 import "github.com/hermo/npmi-go/pkg/cmd"
 
-type Installer struct {
+type NpmInstaller struct {
 	npmBinary      string
 	productionMode bool
 	runner         cmd.Runner
 }
 
-func NewInstaller(config *Config) *Installer {
-	return &Installer{
+func NewNpmInstaller(config *Config) *NpmInstaller {
+	return &NpmInstaller{
 		npmBinary:      config.npmBinary,
 		productionMode: config.productionMode,
 		runner:         config.runner,
@@ -17,7 +17,7 @@ func NewInstaller(config *Config) *Installer {
 }
 
 // Run installs packages from NPM
-func (i *Installer) Run() (stdout string, stderr string, err error) {
+func (i *NpmInstaller) Run() (stdout string, stderr string, err error) {
 	if i.productionMode {
 		return i.runner.RunCommand(i.npmBinary, "ci", "--production", "--loglevel", "error", "--progress", "false")
 	} else {
@@ -26,6 +26,6 @@ func (i *Installer) Run() (stdout string, stderr string, err error) {
 }
 
 // RunPrecacheCommand runs a given command before inserting freshly installed NPM deps into cache
-func (i *Installer) RunPrecacheCommand(commandLine string) (stdout string, stderr string, err error) {
+func (i *NpmInstaller) RunPrecacheCommand(commandLine string) (stdout string, stderr string, err error) {
 	return i.runner.RunShellCommand(commandLine)
 }
