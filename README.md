@@ -24,7 +24,10 @@ Dev builds for your system only may be built by using goreleaser:
 goreleaser build --snapshot --rm-dist --single-target
 ```
 
-The output will appear under `dist/`
+The output will appear under `dist/`.
+
+Creating a symlink with a shorter name is recommended for testing:
+`ln -s dist/npmi-go_linux_amd64/npmi-go`
 
 # Supported Caches
 
@@ -52,32 +55,24 @@ and only trusted systems should be allowed to access the shared cache.
 
 ### Testing with Minio
 
-Start a temporary Minio instance using Docker:
-
-`docker run --rm --name minio -p 9000:9000 minio/minio server /data`
-
-See the output to determine the instance address and default credentials.
-
-Log in to Minio and create a bucket (`npmi` in this example).
-
-Create a dummy NPM project:
-
+1. Start a temporary Minio instance using Docker:
 ```
-mkdir npmi-test && cd npmi-test
-npm init -y
-npm add is-odd
+docker run --rm --name minio -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
 ```
+2. Open the Minio UI (typically at http://localhost:9001/buckets), log in as minioadmin / minioadmin.
+3. Create a bucket called `npmi`.
 
-Now run npmi-go using minio:
+Use the dummy project under `testdata/` and run npmi-go using minio:
 ```
-npmi-go   -verbose \
-          -minio=1 \
-          -minio-endpoint=localhost:9000 \
-          -minio-bucket=npmi \
-          -minio-access-key-id=minioadmin \
-          -minio-secret-access-key=minioadmin \
-          -minio-tls=0 \
-          -local=0
+cd testdata
+../npmi-go -verbose \
+-minio=1 \
+-minio-endpoint=localhost:9000 \
+-minio-bucket=npmi \
+-minio-access-key-id=minioadmin \
+-minio-secret-access-key=minioadmin \
+-minio-tls=0 \
+-local=0
 ```
 
 Note that we disable the local cache for testing purposes.
