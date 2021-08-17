@@ -76,9 +76,15 @@ func (m *main) Run() error {
 		if installedFromCache {
 			m.verboseConsole.Println("NOTE: Cache was a HIT, install is forced")
 		}
-		err = m.installFromNpm(cacheKey)
+
+		err = m.installFromNpm()
 		if err != nil {
 			return fmt.Errorf("installation failed: %v", err)
+		}
+
+		err = m.cacheInstalledPackages(cacheKey)
+		if err != nil {
+			return fmt.Errorf("caching installed packages failed: %v", err)
 		}
 	}
 
@@ -120,7 +126,7 @@ func initCaches(options *Options) ([]cache.Cacher, error) {
 	return caches, nil
 }
 
-func (m *main) installFromNpm(cacheKey string) error {
+func (m *main) installFromNpm() error {
 	m.verboseConsole.Println("Install(npm).InstallPackages start")
 
 	stdout, stderr, err := m.installer.Run()
@@ -140,16 +146,19 @@ func (m *main) installFromNpm(cacheKey string) error {
 	}
 
 	m.verboseConsole.Println("Install complete")
+	return nil
+}
 
+func (m *main) cacheInstalledPackages(cacheKey string) error {
 	archiveFilename, err := m.createArchive(cacheKey)
 	if err != nil {
-		return fmt.Errorf("create-archive: %v: %s", err, stderr)
+		return fmt.Errorf("create-archive: %v", err)
 	}
 	defer m.removeArchiveAfterCaching(archiveFilename)
 
 	err = m.storeArchiveInCache(cacheKey, archiveFilename)
 	if err != nil {
-		return fmt.Errorf("store-archive: %v: %s", err, stderr)
+		return fmt.Errorf("store-archive: %v", err)
 	}
 	return nil
 }
