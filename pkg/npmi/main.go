@@ -78,7 +78,7 @@ func (m *main) Run() error {
 		}
 		err = m.installFromNpm(cacheKey)
 		if err != nil {
-			return fmt.Errorf("can't install from NPM: %v", err)
+			return fmt.Errorf("installation failed: %v", err)
 		}
 	}
 
