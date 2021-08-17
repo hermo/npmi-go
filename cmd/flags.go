@@ -58,6 +58,7 @@ func ParseFlags() (*npmi.Options, error) {
 		Verbose: false,
 		Force:   false,
 
+		UseLocalCache:   true,
 		UseMinioCache:   false,
 		PrecacheCommand: "",
 	}
