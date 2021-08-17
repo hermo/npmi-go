@@ -239,6 +239,10 @@ func (m *main) runPreCacheCommand() error {
 func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err error) {
 	m.verboseConsole.Printf("Lookup start, looking for cache key %s\n", cacheKey)
 
+	if len(m.caches) == 0 {
+		fmt.Fprintf(os.Stderr, "WARN: no caches configured, lookup will always fail\n")
+	}
+
 	foundInCache = false
 	for _, cache := range m.caches {
 		m.verboseConsole.Printf("Lookup(%s).Has start\n", cache)
