@@ -12,12 +12,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	m, err := npmi.New(options)
+	main, err := npmi.New(options)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = m.RunAllSteps()
+	err = main.Run()
 	if err != nil {
 		log.Fatal(err)
 	}

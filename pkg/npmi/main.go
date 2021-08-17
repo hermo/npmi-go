@@ -27,6 +27,7 @@ type main struct {
 	verboseConsole   cli.ConsoleWriter
 }
 
+// New builds a configuration for the current runtime and returns a pre-configured NPMI main
 func New(options *Options) (*main, error) {
 	builder := NewConfigBuilder()
 	builder.WithNodeAndNpmFromPath()
@@ -37,6 +38,7 @@ func New(options *Options) (*main, error) {
 	return NewWithConfig(options, config)
 }
 
+// NewWithConfig creates a NPMI main using the supplied options and config
 func NewWithConfig(options *Options, config *Config) (*main, error) {
 	caches, err := initCaches(options)
 	if err != nil {
@@ -54,7 +56,8 @@ func NewWithConfig(options *Options, config *Config) (*main, error) {
 	}, nil
 }
 
-func (m *main) RunAllSteps() error {
+// Run determines and performs the steps required to install the desired dependencies
+func (m *main) Run() error {
 	m.verboseConsole.Println("npmi-go start")
 	cacheKey, err := m.createCacheKey()
 	if err != nil {

@@ -102,7 +102,7 @@ func TestNpmiCanBeRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = m.RunAllSteps()
+	err = m.Run()
 	if err != nil {
 		t.Fatal(err)
 	}
