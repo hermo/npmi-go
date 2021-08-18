@@ -1,3 +1,5 @@
+[![CodeQL](https://github.com/hermo/npmi-go/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/hermo/npmi-go/actions/workflows/codeql-analysis.yml)
+
 # npmi-go
 npmi-go caches the contents of node_modules directory in a tarball stored
 locally or in a Minio instance. The Node runtime environment and a hash of
