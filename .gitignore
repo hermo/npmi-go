@@ -1,5 +1,7 @@
+/npmi-go
 /dist/
 /package-lock.json
 /.vscode
-/testdata
+/testdata/cache/*.tar.gz
+/testdata/node_modules
 /.envrc

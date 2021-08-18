@@ -2,32 +2,45 @@ package cache
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
+	"net/http"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-// MinioCache represents a Minio Cache instance
-type MinioCache struct {
+// minioCache represents a Minio Cache instance
+type minioCache struct {
 	client          *minio.Client
 	endpoint        string
 	accessKeyID     string
 	secretAccessKey string
 	useTLS          bool
+	insecureTLS     bool
 	bucket          string
 }
 
 // NewMinioCache creates a new Minio Cache
-func NewMinioCache(endpoint string, accessKeyID string, secretAccessKey string, bucket string, useTLS bool) *MinioCache {
-	return &MinioCache{nil, endpoint, accessKeyID, secretAccessKey, useTLS, bucket}
+func NewMinioCache(endpoint string, accessKeyID string, secretAccessKey string, bucket string, useTLS bool, insecureTLS bool) *minioCache {
+	return &minioCache{nil, endpoint, accessKeyID, secretAccessKey, useTLS, insecureTLS, bucket}
 }
 
 // Dial connects to a Minio instance
-func (cache *MinioCache) Dial() error {
+func (cache *minioCache) Dial() error {
+	var transport http.RoundTripper
+	if cache.insecureTLS {
+		transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	} else {
+		transport = http.DefaultTransport
+	}
+
 	minioClient, err := minio.New(cache.endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cache.accessKeyID, cache.secretAccessKey, ""),
-		Secure: cache.useTLS,
+		Creds:     credentials.NewStaticV4(cache.accessKeyID, cache.secretAccessKey, ""),
+		Secure:    cache.useTLS,
+		Transport: transport,
 	})
 
 	if err != nil {
@@ -39,7 +52,7 @@ func (cache *MinioCache) Dial() error {
 }
 
 // Has determines whether or not Minio contains a given key
-func (cache *MinioCache) Has(key string) (bool, error) {
+func (cache *minioCache) Has(key string) (bool, error) {
 	_, err := cache.client.StatObject(context.Background(), cache.bucket, key, minio.StatObjectOptions{})
 	if err != nil {
 		// Handle NoSuchKey error from Minio
@@ -55,7 +68,7 @@ func (cache *MinioCache) Has(key string) (bool, error) {
 
 // Put stores something in the cache
 // TODO: Test with inputs larger than 128 MiB
-func (cache *MinioCache) Put(key string, reader io.Reader) error {
+func (cache *minioCache) Put(key string, reader io.Reader) error {
 	_, err := cache.client.PutObject(
 		context.Background(), cache.bucket, key, reader, -1,
 		minio.PutObjectOptions{ContentType: "application/octet-stream"})
@@ -67,10 +80,10 @@ func (cache *MinioCache) Put(key string, reader io.Reader) error {
 }
 
 // Get fetches something from the cache
-func (cache *MinioCache) Get(key string) (io.Reader, error) {
+func (cache *minioCache) Get(key string) (io.Reader, error) {
 	return cache.client.GetObject(context.Background(), cache.bucket, key, minio.GetObjectOptions{})
 }
 
-func (cache *MinioCache) String() string {
+func (cache *minioCache) String() string {
 	return "minio"
 }
