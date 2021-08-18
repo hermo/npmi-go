@@ -297,7 +297,7 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 }
 
 func initMinioCache(options *MinioCacheOptions) (cache.Cacher, error) {
-	cache := cache.NewMinioCache(options.Endpoint, options.AccessKeyID, options.SecretAccessKey, options.Bucket, options.UseTLS)
+	cache := cache.NewMinioCache(options.Endpoint, options.AccessKeyID, options.SecretAccessKey, options.Bucket, options.UseTLS, options.InsecureTLS)
 	err := cache.Dial()
 	if err != nil {
 		return nil, err

@@ -22,7 +22,7 @@ npmi-go installs NPM packages from a cache to speed up repeating installations.
 
 Supported caches:
 -  local          Data is cached locally in a directory.
--  minioData is cached to a (shared) Minio instance.
+-  minio          Data is cached to a (shared) Minio instance.
 
 When using both caches, the local one is accessed first.
 
@@ -47,6 +47,7 @@ Minio cache:
   NPMI_MINIO_SECRET_ACCESS_KEY  Minio secret access key
   NPMI_MINIO_BUCKET             Minio bucket name
   NPMI_MINIO_TLS                Use TLS when connection to minio
+  NPMI_MINIO_TLS_INSECURE       Disable TLS certificate checks
 
 OPTIONS:
 `
@@ -71,6 +72,7 @@ func ParseFlags() (*npmi.Options, error) {
 		SecretAccessKey: "",
 		Bucket:          "",
 		UseTLS:          true,
+		InsecureTLS:     false,
 	}
 	options.LocalCache = localCache
 	options.MinioCache = minioCache
@@ -97,6 +99,7 @@ func ParseFlags() (*npmi.Options, error) {
 	flag.StringVar(&minioCache.SecretAccessKey, "minio-secret-access-key", minioCache.SecretAccessKey, "Minio secret access key")
 	flag.StringVar(&minioCache.Bucket, "minio-bucket", minioCache.Bucket, "Minio Bucket")
 	flag.BoolVar(&minioCache.UseTLS, "minio-tls", minioCache.UseTLS, "Use TLS to access Minio cache")
+	flag.BoolVar(&minioCache.InsecureTLS, "minio-tls-insecure", minioCache.InsecureTLS, "Disable TLS certificate checks")
 	flag.StringVar(&options.PrecacheCommand, "precache", options.PrecacheCommand, "Run the following shell command before caching packages")
 
 	flag.Usage = func() {

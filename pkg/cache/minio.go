@@ -2,7 +2,9 @@ package cache
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
+	"net/http"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -15,19 +17,30 @@ type minioCache struct {
 	accessKeyID     string
 	secretAccessKey string
 	useTLS          bool
+	insecureTLS     bool
 	bucket          string
 }
 
 // NewMinioCache creates a new Minio Cache
-func NewMinioCache(endpoint string, accessKeyID string, secretAccessKey string, bucket string, useTLS bool) *minioCache {
-	return &minioCache{nil, endpoint, accessKeyID, secretAccessKey, useTLS, bucket}
+func NewMinioCache(endpoint string, accessKeyID string, secretAccessKey string, bucket string, useTLS bool, insecureTLS bool) *minioCache {
+	return &minioCache{nil, endpoint, accessKeyID, secretAccessKey, useTLS, insecureTLS, bucket}
 }
 
 // Dial connects to a Minio instance
 func (cache *minioCache) Dial() error {
+	var transport http.RoundTripper
+	if cache.insecureTLS {
+		transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	} else {
+		transport = http.DefaultTransport
+	}
+
 	minioClient, err := minio.New(cache.endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cache.accessKeyID, cache.secretAccessKey, ""),
-		Secure: cache.useTLS,
+		Creds:     credentials.NewStaticV4(cache.accessKeyID, cache.secretAccessKey, ""),
+		Secure:    cache.useTLS,
+		Transport: transport,
 	})
 
 	if err != nil {

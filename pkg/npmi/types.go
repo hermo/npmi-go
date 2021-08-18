@@ -7,6 +7,7 @@ type MinioCacheOptions struct {
 	SecretAccessKey string `env:"NPMI_MINIO_SECRET_ACCESS_KEY"`
 	Bucket          string `env:"NPMI_MINIO_BUCKET"`
 	UseTLS          bool   `env:"NPMI_MINIO_TLS"`
+	InsecureTLS     bool   `env:"NPMI_MINIO_TLS_INSECURE"`
 }
 
 // LocalCacheOptions constains configuration for Local Cache
