@@ -29,6 +29,21 @@ The output will appear under `dist/`.
 Creating a symlink with a shorter name is recommended for testing:
 `ln -s dist/npmi-go_linux_amd64/npmi-go`
 
+# Releasing
+
+1. Create a git tag with the desired version
+```
+git tag v0.4.0
+```
+2. Create a release build to see if everything is setup correctly
+```
+goreleaser release --rm-dist --skip-publish
+```
+3. If everything seems OK, release to Github by running
+```
+goreleaser release --rm-dist
+```
+
 # Supported Caches
 
 ## Local
