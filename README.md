@@ -57,53 +57,62 @@ and only trusted systems should be allowed to access the shared cache.
 
 1. Start a temporary Minio instance using Docker:
 ```
-docker run --rm --name minio -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
+docker run --rm --name minio \
+-p 9000:9000 -p 9001:9001 \
+-e "MINIO_ROOT_USER=minio" \
+-e "MINIO_ROOT_PASSWORD=password" \
+-v "$PWD/test/minio/certs:/root/.minio/certs" \
+minio/minio \
+server /data --console-address ":9001"
 ```
-2. Open the Minio UI (typically at http://localhost:9001/buckets), log in as minioadmin / minioadmin.
-3. Create a bucket called `npmi`.
-
-Use the dummy project under `testdata/` and run npmi-go using minio:
+2. Edit `test/minio/config.json` and change the IP to match whatever Minio reports.
+3. Create a bucket called `npmi` using Minio Client:
+```
+docker run -v "$PWD/test/minio/config.json:/root/.mc/config.json" minio/mc --insecure mb minio/npmi
+```
+4. Use the dummy project under `testdata/` and run npmi-go using minio:
 ```
 cd testdata
 ../npmi-go -verbose \
 -minio=1 \
 -minio-endpoint=localhost:9000 \
 -minio-bucket=npmi \
--minio-access-key-id=minioadmin \
--minio-secret-access-key=minioadmin \
--minio-tls=0 \
+-minio-access-key-id=minio \
+-minio-secret-access-key=password \
+-minio-tls-insecure \
 -local=0
 ```
 
 Note that we disable the local cache for testing purposes.
 
-```npmi-go start
-Lookup start, looking for key v12.16.3-darwin-x64-dev-xxxx
+```
+npmi-go start
+Lookup start, looking for cache key v14.17.1-linux-x64-dev-774058b9ec06e745270e3dff174406ba12b86bc2bc1b9daf9eb42485b4e20c13
 Lookup(minio).Has start
 Lookup(minio).Has complete: MISS
 Lookup complete
 Install start
 Install(npm).InstallPackages start
-Install(npm).InstallPackages complete: success: added 2 packages in 0.04s
+Install(npm).InstallPackages complete: success: added 1 packages in 0.071s
 Install complete
 Archive start
-Archive creating modules-v12.16.3-darwin-x64-dev-xxxx.tar.gz
+Archive creating modules-v14.17.1-linux-x64-dev-774058b9ec06e745270e3dff174406ba12b86bc2bc1b9daf9eb42485b4e20c13.tar.gz
 Archive complete
 Cache start
-Cache(minio).Open start
-Cache(minio).Open complete
+Cache.OpenArchive start
+Cache.OpenArchive complete
 Cache(minio).Put start
 Cache(minio).Put complete
 Cache complete
+Post-Archive: Removed temporary archive modules-v14.17.1-linux-x64-dev-774058b9ec06e745270e3dff174406ba12b86bc2bc1b9daf9eb42485b4e20c13.tar.gz
 npmi-go complete
-Post-Archive: Removed temporary archive modules-v12.16.3-darwin-x64-dev-xxxx.tar.gz
 ```
 
 Now run the same `npmi-go` command again. The output will be something like:
 
 ```
 npmi-go start
-Lookup start, looking for key v12.16.3-darwin-x64-dev-xxxx
+Lookup start, looking for cache key v14.17.1-linux-x64-dev-774058b9ec06e745270e3dff174406ba12b86bc2bc1b9daf9eb42485b4e20c13
 Lookup(minio).Has start
 Lookup(minio).Has complete: HIT
 Lookup(minio).Get start
@@ -120,12 +129,12 @@ See the `-minio*` options in usage for more info.
 # Usage
 
 ```
-npmi-go v0.0.0-SNAPSHOT-xxxx, commit xxxx, built at XXXX.
+npmi-go dev, commit none, built at unknown.
 npmi-go installs NPM packages from a cache to speed up repeating installations.
 
 Supported caches:
--  local		Data is cached locally in a directory.
--  minio		Data is cached to a (shared) Minio instance.
+-  local          Data is cached locally in a directory.
+-  minioData is cached to a (shared) Minio instance.
 
 When using both caches, the local one is accessed first.
 
@@ -150,30 +159,33 @@ Minio cache:
   NPMI_MINIO_SECRET_ACCESS_KEY  Minio secret access key
   NPMI_MINIO_BUCKET             Minio bucket name
   NPMI_MINIO_TLS                Use TLS when connection to minio
+  NPMI_MINIO_TLS_INSECURE       Disable TLS certificate checks
 
 OPTIONS:
   -force
-    	Force (re)installation of NPM deps and update cache(s)
+        Force (re)installation of NPM deps and update cache(s)
   -local
-    	Use local cache (default true)
+        Use local cache (default true)
   -local-dir string
-    	Local cache directory (default "$TEMP")
+        Local cache directory (default "/tmp")
   -minio
-    	Use Minio for caching
+        Use Minio for caching
   -minio-access-key-id string
-    	Minio access key ID
+        Minio access key ID
   -minio-bucket string
-    	Minio Bucket
+        Minio Bucket
   -minio-endpoint string
-    	Minio endpoint
+        Minio endpoint
   -minio-secret-access-key string
-    	Minio secret access key
+        Minio secret access key
   -minio-tls
-    	Use TLS to access Minio cache (default true)
+        Use TLS to access Minio cache (default true)
+  -minio-tls-insecure
+        Disable TLS certificate checks
   -precache string
-    	Run the following shell command before caching packages
+        Run the following shell command before caching packages
   -verbose
-    	Verbose output
+        Verbose output
 ```
 
 ## Configuration with .npmirc
