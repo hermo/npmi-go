@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/hermo/npmi-go/pkg/files"
@@ -46,9 +47,15 @@ func Test_ExtractFilesNormal(t *testing.T) {
 		if f.Type == tar.TypeReg {
 			hdr.Size = int64(len(data))
 		}
-		tw.WriteHeader(&hdr)
+		err := tw.WriteHeader(&hdr)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if f.Type == tar.TypeReg {
-			tw.Write(data)
+			_, err := tw.Write(data)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 
@@ -66,8 +73,11 @@ func Test_ExtractFilesNormal(t *testing.T) {
 	}
 
 	defer func() {
-		os.Chdir(getBaseDir())
-		err := os.RemoveAll(testDir)
+		err := os.Chdir(getBaseDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = os.RemoveAll(testDir)
 		if err != nil {
 			t.Fatalf("Could not remove temp directory: %v", err)
 		}
@@ -120,6 +130,13 @@ func Test_ExtractFilesEvil(t *testing.T) {
 	}{
 		{"../evil.txt", "evil", tar.TypeReg},
 		{"./../evil.txt", "evil", tar.TypeReg},
+		{"/evil.txt", "evil", tar.TypeReg},
+		{"C:/Users/Public/evil.txt", "evil", tar.TypeReg},
+		{"C:|Users/Public/evil.txt", "evil", tar.TypeReg},
+		{"COM1>", "evil", tar.TypeReg},
+		{"CON", "evil", tar.TypeReg},
+		{"NUL", "evil", tar.TypeReg},
+		{"C:\\Users\\Public\\evil2.txt", "evil2", tar.TypeReg},
 	}
 
 	testBaseDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
@@ -134,8 +151,11 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		}
 
 		defer func() {
-			os.Chdir(getBaseDir())
-			err := os.RemoveAll(testDir)
+			err := os.Chdir(getBaseDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = os.RemoveAll(testDir)
 			if err != nil {
 				t.Fatalf("Could not remove temp directory: %v", err)
 			}
@@ -168,9 +188,15 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		if f.Type == tar.TypeReg {
 			hdr.Size = int64(len(data))
 		}
-		tw.WriteHeader(&hdr)
+		err = tw.WriteHeader(&hdr)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if f.Type == tar.TypeReg {
-			tw.Write(data)
+			_, err = tw.Write(data)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 
 		tw.Close()
@@ -178,7 +204,11 @@ func Test_ExtractFilesEvil(t *testing.T) {
 
 		_, err = Extract(&buf)
 		if err == nil {
-			t.Fatalf("Extract should have failed but did not")
+			t.Errorf("Extract should have failed but did not: %s", f.Name)
+		} else {
+			if !strings.Contains(err.Error(), "invalid path") {
+				t.Errorf("Unexpected error: %v", err)
+			}
 		}
 	}
 }

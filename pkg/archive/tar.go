@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 )
 
 // Create an archive file containing the contents of directory src
@@ -37,6 +37,14 @@ func Extract(reader io.Reader) ([]string, error) {
 
 	tr := tar.NewReader(gzr)
 
+	// Match known evil characters
+	// Windows bad chars and devices from https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+	badChars, err := regexp.Compile("(<|>|:|\"|\\||\\?|\\*|\\.\\.|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
+
+	if err != nil {
+		return nil, fmt.Errorf("could not compile regexp: %v", err)
+	}
+
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -55,13 +63,10 @@ func Extract(reader io.Reader) ([]string, error) {
 
 		// the target location where the dir/file should be created
 		target := header.Name
+		target = filepath.ToSlash(filepath.Clean(target))
 
-		// the following switch could also be done using fi.Mode(), not sure if there
-		// a benefit of using one vs. the other.
-		// fi := header.FileInfo()
-
-		if strings.Contains(target, "..") {
-			return nil, fmt.Errorf("path contains ..: %s", target)
+		if badChars.MatchString(target) {
+			return nil, fmt.Errorf("invalid path: contains bad characteds")
 		}
 
 		// check the file type
