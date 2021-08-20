@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Create an archive file containing the contents of directory src
@@ -58,6 +59,10 @@ func Extract(reader io.Reader) ([]string, error) {
 		// the following switch could also be done using fi.Mode(), not sure if there
 		// a benefit of using one vs. the other.
 		// fi := header.FileInfo()
+
+		if strings.Contains(target, "..") {
+			return nil, fmt.Errorf("path contains ..: %s", target)
+		}
 
 		// check the file type
 		switch header.Typeflag {
