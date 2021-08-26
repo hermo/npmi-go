@@ -1,41 +1,80 @@
+---
 before:
   hooks:
     - go mod download
 builds:
-- id: npmi-go
-  binary: npmi-go
-  main: main.go
-  env:
-    - CGO_ENABLED=0
-  goos:
-    - linux
-    - darwin
-    - windows
-  goarch:
-    - amd64
-  mod_timestamp: '{{ .CommitTimestamp }}'
-  flags:
-    - -trimpath
-  ldflags:
-    - -s -w -X github.com/hermo/npmi-go/cmd.version={{.Version}} -X github.com/hermo/npmi-go/cmd.commit={{.Commit}} -X github.com/hermo/npmi-go/cmd.date={{ .CommitDate }}
+  - id: npmi-go
+    binary: npmi-go
+    main: main.go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags: >-
+      -s -w -X github.com/hermo/npmi-go/cmd.version={{.Version}}
+      -X github.com/hermo/npmi-go/cmd.commit={{.Commit}}
+      -X github.com/hermo/npmi-go/cmd.date={{ .CommitDate }}
 checksum:
-  name_template: '{{ .ProjectName }}_checksums.txt'
+  name_template: "{{ .ProjectName }}_checksums.txt"
 changelog:
   sort: asc
   filters:
     exclude:
-    - '^docs:'
-    - '^test:'
-    - Merge pull request
-    - Merge branch
-    - go mod tidy
+      - "^docs:"
+      - "^test:"
+      - Merge pull request
+      - Merge branch
+      - go mod tidy
 archives:
   - id: tgz
     format: tar.gz
     replacements:
-        darwin: macOS
+      darwin: macOS
     format_overrides:
-        - goos: windows
-          format: zip
+      - goos: windows
+        format: zip
+
 signs:
-  - artifacts: checksum
+  - signature: "${artifact}.minisig"
+    cmd: "sh"
+    args:
+      - "-c"
+      - "minisign -s /media/${USER}/npmi-go.sec -Sm ${artifact} < /media/${USER}/npmi-go.pass"
+    artifacts: all
+
+nfpms:
+  - vendor: Mirko Grönroos
+    homepage: https://github.com/hermo/npmi-go
+    maintainer: Mirko Grönroos <mirko@mirko.fi>
+    description: npmi-go caches the contents of node_modules directory in a tarball stored locally or in a Minio instance
+    license: MIT
+    formats:
+      - deb
+      - rpm
+
+dockers:
+  - image_templates:
+      - "npmi-go:{{ .Tag }}"
+      - "npmi-go:{{ .Major }}"
+      - "npmi-go:{{ .Major }}.{{ .Minor }}"
+      - "npmi-go:latest"
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile.release
+    extra_files:
+      - LICENSE
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=TAG={{ .Tag }}"
+    skip_push: true
+
+release:
+  github:
+  disable: true

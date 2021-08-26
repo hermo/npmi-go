@@ -1,0 +1,14 @@
+FROM docker.dev.verkkokauppa.com/docker/foobar/vk:7
+
+ARG TAG
+
+COPY LICENSE /licenses/LICENSE
+
+LABEL name="npmi-go" \
+      vendor="hermo" \
+      maintainer="Mirko Grönroos <mirko@mirko.fi>" \
+      version="${TAG}" \
+      release="${TAG}" \
+      summary="npmi-go caches the contents of node_modules directory in a tarball stored locally or in a Minio instance"
+
+COPY npmi-go /npmi-go
