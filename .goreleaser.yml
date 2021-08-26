@@ -1,41 +1,54 @@
+---
 before:
   hooks:
     - go mod download
 builds:
-- id: npmi-go
-  binary: npmi-go
-  main: main.go
-  env:
-    - CGO_ENABLED=0
-  goos:
-    - linux
-    - darwin
-    - windows
-  goarch:
-    - amd64
-  mod_timestamp: '{{ .CommitTimestamp }}'
-  flags:
-    - -trimpath
-  ldflags:
-    - -s -w -X github.com/hermo/npmi-go/cmd.version={{.Version}} -X github.com/hermo/npmi-go/cmd.commit={{.Commit}} -X github.com/hermo/npmi-go/cmd.date={{ .CommitDate }}
+  - id: npmi-go
+    binary: npmi-go
+    main: main.go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags: >-
+        -s -w -X github.com/hermo/npmi-go/cmd.version={{.Version}}
+        -X github.com/hermo/npmi-go/cmd.commit={{.Commit}}
+        -X github.com/hermo/npmi-go/cmd.date={{ .CommitDate }}
 checksum:
-  name_template: '{{ .ProjectName }}_checksums.txt'
+  name_template: "{{ .ProjectName }}_checksums.txt"
 changelog:
   sort: asc
   filters:
     exclude:
-    - '^docs:'
-    - '^test:'
-    - Merge pull request
-    - Merge branch
-    - go mod tidy
+      - "^docs:"
+      - "^test:"
+      - Merge pull request
+      - Merge branch
+      - go mod tidy
 archives:
   - id: tgz
     format: tar.gz
     replacements:
-        darwin: macOS
+      darwin: macOS
     format_overrides:
-        - goos: windows
-          format: zip
-signs:
-  - artifacts: checksum
+      - goos: windows
+        format: zip
+#signs:
+#  - artifacts: checksum
+
+nfpms:
+  - vendor: Mirko Grönroos
+    homepage: https://github.com/hermo/npmi-go
+    maintainer: Mirko Grönroos <mirko@mirko.fi>
+    description: Caching npm package installer
+    license: MIT
+    formats: 
+      - deb
+      - rpm

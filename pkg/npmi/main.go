@@ -58,7 +58,7 @@ func NewWithConfig(options *Options, config *Config) (*main, error) {
 
 // Run determines and performs the steps required to install the desired dependencies
 func (m *main) Run() error {
-	m.verboseConsole.Println("npmi-go start")
+	m.verboseConsole.Println("npmi-go start!")
 	cacheKey, err := m.createCacheKey()
 	if err != nil {
 		return fmt.Errorf("can't create cache key: %v", err)
