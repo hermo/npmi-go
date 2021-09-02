@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 // Create an archive file containing the contents of directory src
@@ -28,6 +29,11 @@ func Create(filename string, src string) error {
 
 // Extract all files from an archive to current directory
 func Extract(reader io.Reader) ([]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
 	var manifest []string
 	gzr, err := gzip.NewReader(reader)
 	if err != nil {
@@ -66,7 +72,7 @@ func Extract(reader io.Reader) ([]string, error) {
 		target = filepath.ToSlash(filepath.Clean(target))
 
 		if badChars.MatchString(target) {
-			return nil, fmt.Errorf("invalid path: contains bad characteds")
+			return nil, fmt.Errorf("invalid path: contains bad characters")
 		}
 
 		// check the file type
@@ -82,7 +88,6 @@ func Extract(reader io.Reader) ([]string, error) {
 
 		// if it's a file create it
 		case tar.TypeReg:
-			manifest = append(manifest, target)
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
 				return nil, err
@@ -96,7 +101,39 @@ func Extract(reader io.Reader) ([]string, error) {
 			// manually close here after each file operation; defering would cause each file close
 			// to wait until all operations have completed.
 			f.Close()
+
+			manifest = append(manifest, target)
+
+		case tar.TypeSymlink:
+			reldest := filepath.ToSlash(header.Name)
+			dest := filepath.Join(cwd, filepath.ToSlash(header.Name))
+			source := filepath.ToSlash(header.Linkname)
+
+			if source[0] == '/' {
+				fmt.Printf("WARN: skipping symlink with absolute path: %s -> %s\n", dest, source)
+				continue
+			}
+
+			dir := filepath.Dir(dest)
+			resolvedTarget := filepath.Join(dir, source)
+
+			if !strings.HasPrefix(resolvedTarget, cwd) {
+				fmt.Printf("WARN: %s -> %s points outside cwd\n", reldest, source)
+				continue
+			}
+
+			err = syncSymLink(source, dest)
+			if err != nil {
+				return nil, fmt.Errorf("syncing symlink failed: %v", err)
+			}
+
+			// TODO: set mtime for symlink (unfortunately we can't use os.Chtimes() and probably should use syscall)
+			manifest = append(manifest, target)
+
+		default:
+			return nil, fmt.Errorf("unsupported file type: %+v", header)
 		}
+
 	}
 	return manifest, nil
 }
@@ -117,35 +154,44 @@ func createTarGz(src string, writers ...io.Writer) error {
 	defer tw.Close()
 
 	// walk path
-	return filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
+	return filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
+		var link string
 
 		// return on any error
 		if err != nil {
 			return err
 		}
 
-		// return on non-regular files (thanks to [kumo](https://medium.com/@komuw/just-like-you-did-fbdd7df829d3) for this suggested update)
-		// TODO: Add link support
-		if !fi.IsDir() && !fi.Mode().IsRegular() {
+		pathType := determinePathType(fi)
+		// Ignore unknown types
+		if pathType == TypeOther {
+			fmt.Printf("Ignoring unknown path: %q\n", path)
 			return nil
 		}
 
-		// Clean up file path and convert directory separators to slashes for TAR
-		file = filepath.ToSlash(filepath.Clean(file))
-
-		// Directory entries should have a trailing slash
-		if fi.IsDir() && file[len(file)-1:] != "/" {
-			file = file + "/"
+		if pathType == TypeLink {
+			link, err = os.Readlink(path)
+			if err != nil {
+				return err
+			}
 		}
 
 		// create a new dir/file header
-		header, err := tar.FileInfoHeader(fi, file)
+		header, err := tar.FileInfoHeader(fi, link)
 		if err != nil {
 			return err
 		}
 
-		// TODO: Test if this is unnecessary
-		header.Name = file
+		// Use PAX format for utf-8 support
+		header.Format = tar.FormatPAX
+
+		if pathType == TypeLink {
+			header.Typeflag = tar.TypeSymlink
+			header.Linkname = link
+		}
+
+		header.Name = filepath.ToSlash(path)
+		header.Linkname = filepath.ToSlash(header.Linkname)
 
 		// write the header
 		if err := tw.WriteHeader(header); err != nil {
@@ -153,12 +199,12 @@ func createTarGz(src string, writers ...io.Writer) error {
 		}
 
 		// No further work required for directories
-		if fi.IsDir() {
+		if pathType != TypeRegular {
 			return nil
 		}
 
 		// Add file to archive
-		f, err := os.Open(file)
+		f, err := os.Open(header.Name)
 		if err != nil {
 			return err
 		}
@@ -173,4 +219,52 @@ func createTarGz(src string, writers ...io.Writer) error {
 
 		return nil
 	})
+}
+
+type FileType int
+
+const (
+	TypeRegular FileType = iota
+	TypeLink
+	TypeDir
+	TypeOther
+)
+
+func determinePathType(fi os.FileInfo) FileType {
+	if fi.Mode().IsRegular() {
+		return TypeRegular
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return TypeLink
+	}
+	if fi.IsDir() {
+		return TypeDir
+	}
+	return TypeOther
+}
+
+// syncSymlink makes sure that a symlink exists and is pointing to the right place
+func syncSymLink(source string, dest string) error {
+	info, err := os.Lstat(dest)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else if info.Mode()&os.ModeSymlink != 0 {
+		currentTarget, err := os.Readlink(dest)
+		if err != nil {
+			return err
+		}
+
+		if currentTarget == source {
+			return nil
+		}
+
+		err = os.Remove(dest)
+		if err != nil {
+			return err
+		}
+	}
+
+	return os.Symlink(source, dest)
 }

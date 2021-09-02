@@ -47,9 +47,7 @@ func RemoveFilesNotPresentInManifest(directory string, filesTokeep []string) (in
 			return err
 		}
 
-		// return on non-regular files (thanks to [kumo](https://medium.com/@komuw/just-like-you-did-fbdd7df829d3) for this suggested update)
-		// TODO: Add link support
-		if !fi.Mode().IsRegular() {
+		if !(fi.Mode().IsRegular() || fi.Mode()&os.ModeSymlink != 0) {
 			return nil
 		}
 
