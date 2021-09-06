@@ -82,7 +82,7 @@ func Extract(reader io.Reader) ([]string, error) {
 		// if its a dir and it doesn't exist create it
 		case tar.TypeDir:
 			if _, err := os.Stat(target); err != nil {
-				if err := os.MkdirAll(target, 0755); err != nil {
+				if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
 					return nil, err
 				}
 			}
@@ -103,6 +103,11 @@ func Extract(reader io.Reader) ([]string, error) {
 			// to wait until all operations have completed.
 			f.Close()
 			err = os.Chtimes(target, time.Now(), header.FileInfo().ModTime())
+			if err != nil {
+				return nil, err
+			}
+
+			err = os.Chmod(target, header.FileInfo().Mode())
 			if err != nil {
 				return nil, err
 			}

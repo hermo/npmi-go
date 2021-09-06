@@ -33,14 +33,15 @@ func Test_ExtractFilesNormal(t *testing.T) {
 		Name    string
 		Content string
 		Date    time.Time
+		Mode    os.FileMode
 		Type    byte
 	}{
-		{"root.txt", "rootfile", mDate, tar.TypeReg},
-		{"somedir", "", mDate, tar.TypeDir},
-		{"somedir/sub_link.txt", "sub.txt", zeroDate, tar.TypeSymlink}, // Link created before actual file on purpose
-		{"somedir/sub.txt", "subfile", mDate, tar.TypeReg},
-		{"sub_link.txt", "somedir/sub.txt", zeroDate, tar.TypeSymlink},
-		{"somedir/root_link.txt", "../root.txt", zeroDate, tar.TypeSymlink},
+		{"root.txt", "rootfile", mDate, 0655, tar.TypeReg},
+		{"somedir", "", mDate, 0700, tar.TypeDir},
+		{"somedir/sub_link.txt", "sub.txt", zeroDate, 0655, tar.TypeSymlink}, // Link created before actual file on purpose
+		{"somedir/sub.txt", "subfile", mDate, 0644, tar.TypeReg},
+		{"sub_link.txt", "somedir/sub.txt", zeroDate, 0650, tar.TypeSymlink},
+		{"somedir/root_link.txt", "../root.txt", zeroDate, 0666, tar.TypeSymlink},
 	}
 	// Number of files/links expected in archive
 	wantManifestLen := 5
@@ -55,10 +56,17 @@ func Test_ExtractFilesNormal(t *testing.T) {
 		}
 		if f.Type == tar.TypeReg {
 			hdr.Size = int64(len(data))
+			hdr.Mode = int64(f.Mode)
 		}
 		if f.Type == tar.TypeSymlink {
 			hdr.Linkname = f.Content
+			hdr.Mode = int64(f.Mode & os.ModePerm)
 		}
+
+		if f.Type == tar.TypeDir {
+			hdr.Mode = int64(f.Mode & 0777)
+		}
+
 		err := tw.WriteHeader(&hdr)
 		if err != nil {
 			t.Fatal(err)
@@ -121,11 +129,18 @@ func Test_ExtractFilesNormal(t *testing.T) {
 	}
 
 	for _, f := range tarContents {
-		if f.Type == tar.TypeDir {
-			continue
-		}
-
 		switch f.Type {
+		case tar.TypeDir:
+			fi, err := os.Stat(f.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fi.IsDir() != true {
+				t.Fatalf("%s should be a directory but is not", f.Name)
+			}
+			if (fi.Mode() & 0777) != f.Mode {
+				t.Fatalf("%s mode=%v, want=%v", f.Name, fi.Mode(), f.Mode)
+			}
 		case tar.TypeSymlink:
 			li, err := os.Lstat(f.Name)
 			if err != nil {
@@ -147,6 +162,10 @@ func Test_ExtractFilesNormal(t *testing.T) {
 			fi, err := os.Stat(f.Name)
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			if fi.Mode() != f.Mode {
+				t.Fatalf("%s mode=%v, want=%v", f.Name, fi.Mode(), f.Mode)
 			}
 
 			if fi.ModTime().UTC() != f.Date {
