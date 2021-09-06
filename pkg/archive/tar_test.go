@@ -161,6 +161,8 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		{"CON", "evil", tar.TypeReg},
 		{"NUL", "evil", tar.TypeReg},
 		{"C:\\Users\\Public\\evil2.txt", "evil2", tar.TypeReg},
+		{"abs_link", "/etc/passwd", tar.TypeSymlink},
+		{"outside_link", "../outside_cwd", tar.TypeSymlink},
 	}
 
 	testBaseDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
@@ -211,6 +213,9 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		}
 		if f.Type == tar.TypeReg {
 			hdr.Size = int64(len(data))
+		}
+		if f.Type == tar.TypeSymlink {
+			hdr.Linkname = f.Content
 		}
 		err = tw.WriteHeader(&hdr)
 		if err != nil {
