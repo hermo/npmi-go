@@ -35,17 +35,26 @@ func Test_ExtractFilesNormal(t *testing.T) {
 	}{
 		{"root.txt", "rootfile", tar.TypeReg},
 		{"somedir", "", tar.TypeDir},
+		{"somedir/sub_link.txt", "sub.txt", tar.TypeSymlink}, // Link created before actual file on purpose
 		{"somedir/sub.txt", "subfile", tar.TypeReg},
+		{"sub_link.txt", "somedir/sub.txt", tar.TypeSymlink},
+		{"somedir/root_link.txt", "../root.txt", tar.TypeSymlink},
 	}
+	// Number of files/links expected in archive
+	wantManifestLen := 5
 
 	for _, f := range tarContents {
 		data := []byte(f.Content)
 		hdr := tar.Header{
+			Format:   tar.FormatPAX,
 			Typeflag: f.Type,
 			Name:     f.Name,
 		}
 		if f.Type == tar.TypeReg {
 			hdr.Size = int64(len(data))
+		}
+		if f.Type == tar.TypeSymlink {
+			hdr.Linkname = f.Content
 		}
 		err := tw.WriteHeader(&hdr)
 		if err != nil {
@@ -57,6 +66,7 @@ func Test_ExtractFilesNormal(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+
 	}
 
 	tw.Close()
@@ -103,13 +113,12 @@ func Test_ExtractFilesNormal(t *testing.T) {
 		t.Fatalf("Extract failed: %v", err)
 	}
 
-	wantManifestLen := 2
 	if len(manifest) != wantManifestLen {
 		t.Fatalf("Manifest length=%d,want=%d", len(manifest), wantManifestLen)
 	}
 
 	for _, f := range tarContents {
-		if f.Type != tar.TypeReg {
+		if f.Type == tar.TypeDir {
 			continue
 		}
 		exists, err := files.IsExistingFile(f.Name)
@@ -118,6 +127,21 @@ func Test_ExtractFilesNormal(t *testing.T) {
 		}
 		if !exists {
 			t.Fatalf("File %s should exists but does not", f.Name)
+		} else {
+			if f.Type == tar.TypeSymlink {
+				li, err := os.Lstat(f.Name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				target, err := os.Readlink(f.Name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if target != f.Content {
+					t.Fatalf("Link %s points to %s, want=%s", li.Name(), f.Content, target)
+				}
+
+			}
 		}
 	}
 }
