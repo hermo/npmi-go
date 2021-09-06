@@ -110,16 +110,14 @@ func Extract(reader io.Reader) ([]string, error) {
 			source := filepath.ToSlash(header.Linkname)
 
 			if source[0] == '/' {
-				fmt.Printf("WARN: skipping symlink with absolute path: %s -> %s\n", dest, source)
-				continue
+				return nil, fmt.Errorf("invalid path: symlink with absolute path: %s -> %s", dest, source)
 			}
 
 			dir := filepath.Dir(dest)
 			resolvedTarget := filepath.Join(dir, source)
 
 			if !strings.HasPrefix(resolvedTarget, cwd) {
-				fmt.Printf("WARN: %s -> %s points outside cwd\n", reldest, source)
-				continue
+				return nil, fmt.Errorf("invalid path: %s -> %s points outside cwd", reldest, source)
 			}
 
 			err = syncSymLink(source, dest)
