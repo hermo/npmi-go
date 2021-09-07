@@ -11,8 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-
-	"github.com/hermo/npmi-go/pkg/files"
+	"time"
 )
 
 func getBaseDir() string {
@@ -27,18 +26,22 @@ func Test_ExtractFilesNormal(t *testing.T) {
 	var buf bytes.Buffer
 	gzw := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gzw)
+	mDate := time.Date(2021, time.September, 6, 11, 27, 4, 0, time.UTC)
+	zeroDate := time.Time{}
 
 	tarContents := []struct {
 		Name    string
 		Content string
+		Date    time.Time
+		Mode    os.FileMode
 		Type    byte
 	}{
-		{"root.txt", "rootfile", tar.TypeReg},
-		{"somedir", "", tar.TypeDir},
-		{"somedir/sub_link.txt", "sub.txt", tar.TypeSymlink}, // Link created before actual file on purpose
-		{"somedir/sub.txt", "subfile", tar.TypeReg},
-		{"sub_link.txt", "somedir/sub.txt", tar.TypeSymlink},
-		{"somedir/root_link.txt", "../root.txt", tar.TypeSymlink},
+		{"root.txt", "rootfile", mDate, 0655, tar.TypeReg},
+		{"somedir", "", mDate, 0700, tar.TypeDir},
+		{"somedir/sub_link.txt", "sub.txt", zeroDate, 0655, tar.TypeSymlink}, // Link created before actual file on purpose
+		{"somedir/sub.txt", "subfile", mDate, 0644, tar.TypeReg},
+		{"sub_link.txt", "somedir/sub.txt", zeroDate, 0650, tar.TypeSymlink},
+		{"somedir/root_link.txt", "../root.txt", zeroDate, 0666, tar.TypeSymlink},
 	}
 	// Number of files/links expected in archive
 	wantManifestLen := 5
@@ -49,13 +52,21 @@ func Test_ExtractFilesNormal(t *testing.T) {
 			Format:   tar.FormatPAX,
 			Typeflag: f.Type,
 			Name:     f.Name,
+			ModTime:  f.Date,
 		}
 		if f.Type == tar.TypeReg {
 			hdr.Size = int64(len(data))
+			hdr.Mode = int64(f.Mode)
 		}
 		if f.Type == tar.TypeSymlink {
 			hdr.Linkname = f.Content
+			hdr.Mode = int64(f.Mode & os.ModePerm)
 		}
+
+		if f.Type == tar.TypeDir {
+			hdr.Mode = int64(f.Mode & 0777)
+		}
+
 		err := tw.WriteHeader(&hdr)
 		if err != nil {
 			t.Fatal(err)
@@ -118,29 +129,47 @@ func Test_ExtractFilesNormal(t *testing.T) {
 	}
 
 	for _, f := range tarContents {
-		if f.Type == tar.TypeDir {
-			continue
-		}
-		exists, err := files.IsExistingFile(f.Name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !exists {
-			t.Fatalf("File %s should exists but does not", f.Name)
-		} else {
-			if f.Type == tar.TypeSymlink {
-				li, err := os.Lstat(f.Name)
-				if err != nil {
-					t.Fatal(err)
-				}
-				target, err := os.Readlink(f.Name)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if target != f.Content {
-					t.Fatalf("Link %s points to %s, want=%s", li.Name(), f.Content, target)
-				}
+		switch f.Type {
+		case tar.TypeDir:
+			fi, err := os.Stat(f.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fi.IsDir() != true {
+				t.Fatalf("%s should be a directory but is not", f.Name)
+			}
+			if (fi.Mode() & 0777) != f.Mode {
+				t.Fatalf("%s mode=%v, want=%v", f.Name, fi.Mode(), f.Mode)
+			}
+		case tar.TypeSymlink:
+			li, err := os.Lstat(f.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
 
+			if !f.Date.IsZero() {
+				t.Fatal("Symlink timestamps are not supported and need to be zero")
+			}
+
+			target, err := os.Readlink(f.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if target != f.Content {
+				t.Fatalf("Link %s points to %s, want=%s", li.Name(), f.Content, target)
+			}
+		case tar.TypeReg:
+			fi, err := os.Stat(f.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if fi.Mode() != f.Mode {
+				t.Fatalf("%s mode=%v, want=%v", f.Name, fi.Mode(), f.Mode)
+			}
+
+			if fi.ModTime().UTC() != f.Date {
+				t.Fatalf("%s mtime=%v, want=%v", f.Name, fi.ModTime().UTC(), f.Date)
 			}
 		}
 	}

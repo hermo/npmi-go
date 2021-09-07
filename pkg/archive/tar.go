@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Create an archive file containing the contents of directory src
@@ -81,7 +82,7 @@ func Extract(reader io.Reader) ([]string, error) {
 		// if its a dir and it doesn't exist create it
 		case tar.TypeDir:
 			if _, err := os.Stat(target); err != nil {
-				if err := os.MkdirAll(target, 0755); err != nil {
+				if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
 					return nil, err
 				}
 			}
@@ -101,6 +102,15 @@ func Extract(reader io.Reader) ([]string, error) {
 			// manually close here after each file operation; defering would cause each file close
 			// to wait until all operations have completed.
 			f.Close()
+			err = os.Chtimes(target, time.Now(), header.FileInfo().ModTime())
+			if err != nil {
+				return nil, err
+			}
+
+			err = os.Chmod(target, header.FileInfo().Mode())
+			if err != nil {
+				return nil, err
+			}
 
 			manifest = append(manifest, target)
 
@@ -125,7 +135,8 @@ func Extract(reader io.Reader) ([]string, error) {
 				return nil, fmt.Errorf("syncing symlink failed: %v", err)
 			}
 
-			// TODO: set mtime for symlink (unfortunately we can't use os.Chtimes() and probably should use syscall)
+			// symlink timestamps are not preserved
+			// see https://stackoverflow.com/questions/54762079/how-to-change-timestamp-for-symbol-link-using-golang
 			manifest = append(manifest, target)
 
 		default:
