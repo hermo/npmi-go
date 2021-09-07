@@ -141,6 +141,10 @@ func Test_ExtractFilesNormal(t *testing.T) {
 			if (fi.Mode() & 0777) != f.Mode {
 				t.Fatalf("%s mode=%v, want=%v", f.Name, fi.Mode(), f.Mode)
 			}
+
+			if fi.ModTime().UTC() != f.Date {
+				t.Fatalf("%s mtime=%v, want=%v", f.Name, fi.ModTime().UTC(), f.Date)
+			}
 		case tar.TypeSymlink:
 			li, err := os.Lstat(f.Name)
 			if err != nil {

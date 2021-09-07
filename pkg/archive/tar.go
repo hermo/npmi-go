@@ -87,6 +87,13 @@ func Extract(reader io.Reader) ([]string, error) {
 				}
 			}
 
+			// Defer setting directory mtimes as they are bound to change when files are written to them
+			defer func() {
+				if err := os.Chtimes(target, time.Now(), header.FileInfo().ModTime()); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: Could not restore mtime for directory %s: %v", target, err)
+				}
+			}()
+
 		// if it's a file create it
 		case tar.TypeReg:
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
