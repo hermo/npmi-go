@@ -83,7 +83,3 @@ func (cache *minioCache) Put(key string, reader io.Reader) error {
 func (cache *minioCache) Get(key string) (io.Reader, error) {
 	return cache.client.GetObject(context.Background(), cache.bucket, key, minio.GetObjectOptions{})
 }
-
-func (cache *minioCache) String() string {
-	return "minio"
-}
