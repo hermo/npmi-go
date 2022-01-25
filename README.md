@@ -8,6 +8,8 @@ package-lock.json is used as the cache key.
 The cache key is something like
 `v12.16.3-darwin-x64-dev-78c49bbaba2e4002e313e55018716d9a673fa99f1e676afcb03df0a902f4883f`.
 
+![Diagram describing how npmi-go works](npmi-go.svg)
+
 # Not for production (yet)
 Note that npmi-go is work-in-progress and should not be used in production.
 
