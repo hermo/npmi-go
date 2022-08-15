@@ -274,3 +274,58 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		}
 	}
 }
+
+func Test_CreateEvil(t *testing.T) {
+	testBaseDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
+	if err != nil {
+		t.Fatalf("Can't find test directory: %v", err)
+	}
+	evilPayloads := []struct {
+		Target string
+		Source string
+	}{
+		{"../evil.txt", "evil"},
+		{"./../evil.txt", "evil"},
+		{"/evil.txt", "evil"},
+		{"C:/Users/Public/evil.txt", "evil"},
+		{"C:|Users/Public/evil.txt", "evil"},
+		{"COM1>", "evil"},
+		{"CON", "evil"},
+		{"NUL", "evil"},
+		{"C:\\Users\\Public\\evil2.txt", "evil2"},
+		{"/etc/passwd", "passwd"},
+	}
+
+	for _, f := range evilPayloads {
+		testDir, err := os.MkdirTemp(testBaseDir, "test")
+		if err != nil {
+			t.Fatalf("Can't create temporary test directory: %v", err)
+		}
+
+		defer func() {
+			err := os.Chdir(getBaseDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = os.RemoveAll(testDir)
+			if err != nil {
+				t.Fatalf("Could not remove temp directory: %v", err)
+			}
+		}()
+
+		err = os.Chdir(testDir)
+		if err != nil {
+			t.Fatalf("Can't chdir to test directory: %v", err)
+		}
+		err = os.Symlink(f.Target, f.Source)
+		if err != nil {
+			t.Fatalf("Can't create test symlink: %v", err)
+		}
+
+		err = Create("temp.tgz", ".")
+
+		if err == nil {
+			t.Errorf("Evil symlink target should have failed but did not: %s\n", f.Target)
+		}
+	}
+}
