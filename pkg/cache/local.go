@@ -53,3 +53,7 @@ func (cache *localCache) Put(key string, reader io.Reader) error {
 	}
 	return nil
 }
+
+func (cache *localCache) String() string {
+	return "local"
+}
