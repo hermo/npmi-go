@@ -180,7 +180,7 @@ func Test_ExtractFilesNormal(t *testing.T) {
 }
 
 func Test_ExtractFilesEvil(t *testing.T) {
-	evilPayloads := []struct {
+	tests := []struct {
 		Name    string
 		Content string
 		Type    byte
@@ -203,159 +203,170 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		t.Fatalf("Can't find test data directory: %v", err)
 	}
 
-	for _, f := range evilPayloads {
-		testDir, err := os.MkdirTemp(testBaseDir, "test")
-		if err != nil {
-			t.Fatalf("Can't create temporary test directory: %v", err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			testDir, err := os.MkdirTemp(testBaseDir, "test")
+			if err != nil {
+				t.Fatalf("Can't create temporary test directory: %v", err)
+			}
 
-		defer func() {
-			err := os.Chdir(getBaseDir())
+			defer func() {
+				err := os.Chdir(getBaseDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = os.RemoveAll(testDir)
+				if err != nil {
+					t.Fatalf("Could not remove temp directory: %v", err)
+				}
+			}()
+
+			err = os.Chdir(testDir)
+			if err != nil {
+				t.Fatalf("Can't chdir to test directory: %v", err)
+			}
+
+			err = os.Mkdir("extract", 0700)
+			if err != nil {
+				t.Fatalf("Could not create directory: %v", err)
+			}
+
+			err = os.Chdir("extract")
+			if err != nil {
+				t.Fatalf("Can't chdir to test directory: %v", err)
+			}
+
+			var buf bytes.Buffer
+			gzw := gzip.NewWriter(&buf)
+			tw := tar.NewWriter(gzw)
+
+			data := []byte(tt.Content)
+			hdr := tar.Header{
+				Typeflag: tt.Type,
+				Name:     tt.Name,
+			}
+			if tt.Type == tar.TypeReg {
+				hdr.Size = int64(len(data))
+			}
+			if tt.Type == tar.TypeSymlink {
+				hdr.Linkname = tt.Content
+			}
+			err = tw.WriteHeader(&hdr)
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = os.RemoveAll(testDir)
-			if err != nil {
-				t.Fatalf("Could not remove temp directory: %v", err)
+			if tt.Type == tar.TypeReg {
+				_, err = tw.Write(data)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
-		}()
 
-		err = os.Chdir(testDir)
-		if err != nil {
-			t.Fatalf("Can't chdir to test directory: %v", err)
-		}
+			tw.Close()
+			gzw.Close()
 
-		err = os.Mkdir("extract", 0700)
-		if err != nil {
-			t.Fatalf("Could not create directory: %v", err)
-		}
-
-		err = os.Chdir("extract")
-		if err != nil {
-			t.Fatalf("Can't chdir to test directory: %v", err)
-		}
-
-		var buf bytes.Buffer
-		gzw := gzip.NewWriter(&buf)
-		tw := tar.NewWriter(gzw)
-
-		data := []byte(f.Content)
-		hdr := tar.Header{
-			Typeflag: f.Type,
-			Name:     f.Name,
-		}
-		if f.Type == tar.TypeReg {
-			hdr.Size = int64(len(data))
-		}
-		if f.Type == tar.TypeSymlink {
-			hdr.Linkname = f.Content
-		}
-		err = tw.WriteHeader(&hdr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if f.Type == tar.TypeReg {
-			_, err = tw.Write(data)
-			if err != nil {
-				t.Fatal(err)
+			_, err = Extract(&buf)
+			if err == nil {
+				t.Errorf("Extract should have failed but did not: %s", tt.Name)
+			} else {
+				if !strings.Contains(err.Error(), "invalid path") {
+					t.Errorf("Unexpected error: %v", err)
+				}
 			}
-		}
-
-		tw.Close()
-		gzw.Close()
-
-		_, err = Extract(&buf)
-		if err == nil {
-			t.Errorf("Extract should have failed but did not: %s", f.Name)
-		} else {
-			if !strings.Contains(err.Error(), "invalid path") {
-				t.Errorf("Unexpected error: %v", err)
-			}
-		}
+		})
 	}
 }
 
-func Test_Create(t *testing.T) {
+// Some tests for disallowing bad symlinks
+func Test_CreateArchiveSymlinks(t *testing.T) {
 	testBaseDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
 	if err != nil {
 		t.Fatalf("Can't find test directory: %v", err)
 	}
-	payloads := []struct {
-		Target string
+	tests := []struct {
 		Source string
+		Target string
 		IsEvil bool
 	}{
 		// Normal cases
-		{"hello.txt", "hello2.txt", false},
-		{"subdir/hello.txt", "hello_subdir_1.txt", false},
-		{"subdir/.foo/hello.txt", "hello_subdir_2.txt", false},
-		{"../hello.txt", "subdir/hello_parent_1.txt", false},
+		{"hello2.txt", "hello.txt", false},
+		{"hello_subdir_1.txt", "subdir/hello.txt", false},
+		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false},
+		{"subdir/hello_parent_1.txt", "../hello.txt", false},
 		// Evil cases
-		{"../../hello.txt", "subdir/evil_parent_0.txt", true},
-		{"../evil.txt", "evil_parent_1.txt", true},
-		{"./../evil.txt", "evil_parent_2.txt", true},
-		{"/evil.txt", "evil_abs_1.txt", true},
-		{"/etc/passwd", "evil_abs_2.txt", true},
-		{"C:/Users/Public/evil.txt", "evil_abs_win_1.txt", true},
-		{"C:|Users/Public/evil.txt", "evil_abs_win_2.txt", true},
-		{"C:\\Users\\Public\\evil2.txt", "evil_abs_win_3.txt", true},
-		{"COM1>", "evil_win_dev_1.txt", true},
-		{"CON", "evil_win_dev_2.txt", true},
-		{"NUL", "evil_win_dev_3.txt", true},
+		{"subdir/evil_parent_0.txt", "../../hello.txt", true},
+		{"evil_parent_1.txt", "../evil.txt", true},
+		{"evil_parent_2.txt", "./../evil.txt", true},
+		{"evil_abs_1.txt", "/evil.txt", true},
+		{"evil_abs_2.txt", "/etc/passwd", true},
+		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true},
+		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true},
+		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true},
+		{"evil_win_dev_1.txt", "COM1>", true},
+		{"evil_win_dev_2.txt", "CON", true},
+		{"evil_win_dev_3.txt", "NUL", true},
 	}
 
-	for _, f := range payloads {
-		testDir, err := os.MkdirTemp(testBaseDir, "test")
-		if err != nil {
-			t.Fatalf("Can't create temporary test directory: %v", err)
-		}
-
-		defer func() {
-			err := os.Chdir(getBaseDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = os.RemoveAll(testDir)
-			if err != nil {
-				t.Fatalf("Could not remove temp directory: %v", err)
-			}
-		}()
-
-		err = os.Chdir(testDir)
-		if err != nil {
-			t.Fatalf("Can't chdir to test directory: %v", err)
-		}
-
-		err = os.Mkdir("subdir", 0750)
-		if err != nil {
-			t.Fatalf("Can't create test subdir: %v", err)
-		}
-
-		err = os.Symlink(f.Target, f.Source)
-		if err != nil {
-			t.Fatalf("Can't create test symlink: %v", err)
-		}
-
-		err = Create("temp.tgz", ".")
-
-		if f.IsEvil {
-			if err == nil {
-				t.Errorf("Evil symlink (%s -> %s) should have failed but did not\n", f.Source, f.Target)
-			} else {
-				if !strings.Contains(err.Error(), "invalid path") {
-					t.Errorf("Unexpected error when creating evil symlink (%s -> %s): %v", f.Source, f.Target, err)
-				}
-			}
+	for _, tt := range tests {
+		var testType string
+		if tt.IsEvil {
+			testType = "EVIL"
 		} else {
+			testType = "NORMAL"
+		}
+		testName := fmt.Sprintf("%s/%s", testType, tt.Source)
+
+		t.Run(testName, func(t *testing.T) {
+			testDir, err := os.MkdirTemp(testBaseDir, "test")
 			if err != nil {
-				if strings.Contains(err.Error(), "invalid path") {
-					t.Errorf("Normal symlink (%s -> %s) failed: %v", f.Source, f.Target, err)
-				} else {
-					t.Errorf("Unexpected error when creating normal symlink (%s -> %s): %v", f.Source, f.Target, err)
-				}
+				t.Fatalf("Can't create temporary test directory: %v", err)
 			}
 
-		}
+			defer func() {
+				err := os.Chdir(getBaseDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = os.RemoveAll(testDir)
+				if err != nil {
+					t.Fatalf("Could not remove temp directory: %v", err)
+				}
+			}()
 
+			err = os.Chdir(testDir)
+			if err != nil {
+				t.Fatalf("Can't chdir to test directory: %v", err)
+			}
+
+			err = os.Mkdir("subdir", 0750)
+			if err != nil {
+				t.Fatalf("Can't create test subdir: %v", err)
+			}
+
+			err = os.Symlink(tt.Target, tt.Source)
+			if err != nil {
+				t.Fatalf("Can't create test symlink: %v", err)
+			}
+
+			err = Create("temp.tgz", ".")
+
+			if tt.IsEvil {
+				if err == nil {
+					t.Fatalf("Evil symlink (%s -> %s) should have failed but did not\n", tt.Source, tt.Target)
+				} else {
+					if !strings.Contains(err.Error(), "invalid path") {
+						t.Fatalf("Unexpected error when creating evil symlink (%s -> %s): %v", tt.Source, tt.Target, err)
+					}
+				}
+			} else {
+				if err != nil {
+					if strings.Contains(err.Error(), "invalid path") {
+						t.Fatalf("Normal symlink (%s -> %s) failed: %v", tt.Source, tt.Target, err)
+					} else {
+						t.Fatalf("Unexpected error when creating normal symlink (%s -> %s): %v", tt.Source, tt.Target, err)
+					}
+				}
+			}
+		})
 	}
 }
