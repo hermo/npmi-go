@@ -35,7 +35,7 @@ Use the following env variables to set default options.
   NPMI_VERBOSE   Verbose output
   NPMI_FORCE     Force (re)installation of deps
   NPMI_PRECACHE  Pre-cache command
-	NPMI_TEMP_DIR	 Use specified temp directory when creating archives (Default: system temp)
+  NPMI_TEMP_DIR  Use specified temp directory when creating archives (Default: system temp)
 
 Local cache:
   NPMI_LOCAL      Use local cache
