@@ -24,4 +24,5 @@ type Options struct {
 	MinioCache      *MinioCacheOptions
 	LocalCache      *LocalCacheOptions
 	PrecacheCommand string `env:"NPMI_PRECACHE"`
+	TempDir         string `env:"NPMI_TEMP_DIR"`
 }
