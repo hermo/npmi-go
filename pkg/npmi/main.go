@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/hermo/npmi-go/internal/cli"
 	"github.com/hermo/npmi-go/pkg/archive"
@@ -173,18 +174,18 @@ func (m *main) removeArchiveAfterCaching(archiveFilename string) {
 }
 
 func (m *main) createArchive(cacheKey string) (archiveFilename string, err error) {
-	archiveFilename = createArchiveFilename(cacheKey)
+	archivePath := filepath.Join(m.options.TempDir, createArchiveFilename(cacheKey))
 
 	m.verboseConsole.Println("Archive start")
-	m.verboseConsole.Printf("Archive creating %s\n", archiveFilename)
+	m.verboseConsole.Printf("Archive creating %s\n", archivePath)
 
-	err = archive.Create(archiveFilename, m.modulesDirectory)
+	err = archive.Create(archivePath, m.modulesDirectory)
 	if err != nil {
 		return "", fmt.Errorf("archive failed: %s", err)
 	}
 
 	m.verboseConsole.Println("Archive complete")
-	return archiveFilename, nil
+	return archivePath, nil
 }
 
 func createArchiveFilename(cacheKey string) string {

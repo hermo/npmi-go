@@ -35,10 +35,11 @@ Use the following env variables to set default options.
   NPMI_VERBOSE   Verbose output
   NPMI_FORCE     Force (re)installation of deps
   NPMI_PRECACHE  Pre-cache command
+	NPMI_TEMP_DIR	 Use specified temp directory when creating archives (Default: system temp)
 
 Local cache:
   NPMI_LOCAL      Use local cache
-  NPMI_LOCAL_DIR  Local cache directory
+  NPMI_LOCAL_DIR  Local cache directory (Default: system temp)
 
 Minio cache:
   NPMI_MINIO                    Use Minio cache
@@ -62,6 +63,7 @@ func ParseFlags() (*npmi.Options, error) {
 		UseLocalCache:   true,
 		UseMinioCache:   false,
 		PrecacheCommand: "",
+		TempDir:         os.TempDir(),
 	}
 	localCache := &npmi.LocalCacheOptions{
 		Dir: os.TempDir(),
@@ -101,6 +103,7 @@ func ParseFlags() (*npmi.Options, error) {
 	flag.BoolVar(&minioCache.UseTLS, "minio-tls", minioCache.UseTLS, "Use TLS to access Minio cache")
 	flag.BoolVar(&minioCache.InsecureTLS, "minio-tls-insecure", minioCache.InsecureTLS, "Disable TLS certificate checks")
 	flag.StringVar(&options.PrecacheCommand, "precache", options.PrecacheCommand, "Run the following shell command before caching packages")
+	flag.StringVar(&options.TempDir, "temp-dir", options.TempDir, "Temporary directory for archive creation")
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), usage, version, commit, date)
