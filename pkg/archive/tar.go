@@ -169,6 +169,18 @@ func createTarGz(src string, writers ...io.Writer) error {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
+	// Match known evil characters
+	badChars, err := regexp.Compile("(<|>|:|\"|\\||\\?|\\*|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
+
+	if err != nil {
+		return fmt.Errorf("could not compile regexp: %v", err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
 	// walk path
 	return filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
 		var link string
@@ -181,7 +193,7 @@ func createTarGz(src string, writers ...io.Writer) error {
 		pathType := determinePathType(fi)
 		// Ignore unknown types
 		if pathType == TypeOther {
-			fmt.Printf("Ignoring unknown path: %q\n", path)
+			fmt.Printf("WARN: Ignoring unknown path: %q\n", path)
 			return nil
 		}
 
@@ -189,6 +201,30 @@ func createTarGz(src string, writers ...io.Writer) error {
 			link, err = os.Readlink(path)
 			if err != nil {
 				return err
+			}
+
+			pathDir := filepath.Dir(path)
+			linkFull := filepath.Join(wd, pathDir, link)
+
+			//			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", path, pathDir, link, linkFull)
+
+			if badChars.MatchString(link) {
+				return fmt.Errorf("invalid path: contains bad characters: %s", link)
+			}
+
+			if strings.Index(linkFull, wd) != 0 {
+				return fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", path, link)
+			}
+
+			_, err := os.Stat(linkFull)
+			if err != nil {
+				if os.IsNotExist(err) {
+					fmt.Printf("WARN: Skipping non-existent symlink: %s -> %s\n", path, link)
+					return nil
+
+				} else {
+					return err
+				}
 			}
 		}
 
