@@ -179,6 +179,7 @@ Minio cache:
   NPMI_MINIO_BUCKET             Minio bucket name
   NPMI_MINIO_TLS                Use TLS when connection to minio
   NPMI_MINIO_TLS_INSECURE       Disable TLS certificate checks
+  NPMI_TEMP_DIR                 Use specified temp directory when creating archives (Default: system temp)
 
 OPTIONS:
   -force
@@ -203,6 +204,8 @@ OPTIONS:
         Disable TLS certificate checks
   -precache string
         Run the following shell command before caching packages
+  -temp-dir string
+        Temporary directory for archive creation (default "/tmp")
   -verbose
         Verbose output
 ```
