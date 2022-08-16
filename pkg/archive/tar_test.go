@@ -83,31 +83,12 @@ func Test_ExtractFilesNormal(t *testing.T) {
 	tw.Close()
 	gzw.Close()
 
-	testBaseDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
-	if err != nil {
-		t.Fatalf("Can't find test directory: %v", err)
-	}
-
-	testDir, err := os.MkdirTemp(testBaseDir, "test")
+	testDir, err := prepareTestDir()
 	if err != nil {
 		t.Fatalf("Can't create temporary test directory: %v", err)
 	}
 
-	defer func() {
-		err := os.Chdir(getBaseDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = os.RemoveAll(testDir)
-		if err != nil {
-			t.Fatalf("Could not remove temp directory: %v", err)
-		}
-	}()
-
-	err = os.Chdir(testDir)
-	if err != nil {
-		t.Fatalf("Can't chdir to test directory: %v", err)
-	}
+	defer removeTestDir(testDir)
 
 	err = os.Mkdir("extract", 0700)
 	if err != nil {
@@ -198,33 +179,14 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		{"outside_link", "../outside_cwd", tar.TypeSymlink},
 	}
 
-	testBaseDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
-	if err != nil {
-		t.Fatalf("Can't find test data directory: %v", err)
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			testDir, err := os.MkdirTemp(testBaseDir, "test")
+			testDir, err := prepareTestDir()
 			if err != nil {
 				t.Fatalf("Can't create temporary test directory: %v", err)
 			}
 
-			defer func() {
-				err := os.Chdir(getBaseDir())
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = os.RemoveAll(testDir)
-				if err != nil {
-					t.Fatalf("Could not remove temp directory: %v", err)
-				}
-			}()
-
-			err = os.Chdir(testDir)
-			if err != nil {
-				t.Fatalf("Can't chdir to test directory: %v", err)
-			}
+			defer removeTestDir(testDir)
 
 			err = os.Mkdir("extract", 0700)
 			if err != nil {
@@ -279,10 +241,6 @@ func Test_ExtractFilesEvil(t *testing.T) {
 
 // Some tests for disallowing bad symlinks
 func Test_CreateArchiveSymlinks(t *testing.T) {
-	testBaseDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
-	if err != nil {
-		t.Fatalf("Can't find test directory: %v", err)
-	}
 	tests := []struct {
 		Source string
 		Target string
@@ -317,26 +275,12 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 		testName := fmt.Sprintf("%s/%s", testType, tt.Source)
 
 		t.Run(testName, func(t *testing.T) {
-			testDir, err := os.MkdirTemp(testBaseDir, "test")
+			testDir, err := prepareTestDir()
 			if err != nil {
 				t.Fatalf("Can't create temporary test directory: %v", err)
 			}
 
-			defer func() {
-				err := os.Chdir(getBaseDir())
-				if err != nil {
-					t.Fatal(err)
-				}
-				err = os.RemoveAll(testDir)
-				if err != nil {
-					t.Fatalf("Could not remove temp directory: %v", err)
-				}
-			}()
-
-			err = os.Chdir(testDir)
-			if err != nil {
-				t.Fatalf("Can't chdir to test directory: %v", err)
-			}
+			defer removeTestDir(testDir)
 
 			err = os.Mkdir("subdir", 0750)
 			if err != nil {
@@ -368,5 +312,36 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Create a temporary directory and chdir into it
+func prepareTestDir() (string, error) {
+	testBaseDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
+	if err != nil {
+		return "", fmt.Errorf("can't find test directory: %v", err)
+	}
+	testDir, err := os.MkdirTemp(testBaseDir, "test")
+	if err != nil {
+		return "", fmt.Errorf("can't create temporary test directory: %v", err)
+	}
+
+	err = os.Chdir(testDir)
+	if err != nil {
+		return "", fmt.Errorf("can't chdir to test directory: %v", err)
+	}
+
+	return testDir, nil
+}
+
+// Remove test directory after testing
+func removeTestDir(testDir string) {
+	err := os.Chdir(getBaseDir())
+	if err != nil {
+		return
+	}
+	err = os.RemoveAll(testDir)
+	if err != nil {
+		fmt.Printf("ERROR: could not remove temp directory: %v", err)
 	}
 }
