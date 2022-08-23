@@ -119,7 +119,7 @@ func initCaches(options *Options) ([]cache.Cacher, error) {
 	if options.UseLocalCache {
 		cache, err := initLocalCache(options.LocalCache)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("local cache: %s", err)
 		}
 		caches = append(caches, cache)
 	}
@@ -127,7 +127,7 @@ func initCaches(options *Options) ([]cache.Cacher, error) {
 	if options.UseMinioCache {
 		cache, err := initMinioCache(options.MinioCache)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("minio cache: %s", err)
 		}
 		caches = append(caches, cache)
 	}

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"log"
 	"os"
 
 	"github.com/hashicorp/go-hclog"
@@ -11,10 +10,15 @@ import (
 func Execute() {
 	options, err := ParseFlags()
 	if err != nil {
-		log.Fatalf("Flag parsing failed: %s", err)
+		// Create a default logger for handling early errors.
+		log := hclog.New(&hclog.LoggerOptions{
+			Name: "npmi",
+		})
+		log.Error("Flag parsing failed: %s", err)
 		os.Exit(1)
 	}
 
+	// Create properly configured logger for the rest of the runtime duration.
 	log := hclog.New(&hclog.LoggerOptions{
 		Name:       "npmi",
 		Level:      hclog.LevelFromString(options.LogLevel.String()),
