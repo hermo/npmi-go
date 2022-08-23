@@ -29,7 +29,7 @@ Use the following env variables to set default options.
   NPMI_LOGLEVEL  Log level. One of info|debug|trace (Default: "info")
   NPMI_JSON      Use JSON for log output (Default: false)
   NPMI_VERBOSE   Verbose output. DEPRECATED
-                 Please use the -loglevel flag or NPMI_LOGLEVEL env variable with 'debug' or 'trace'
+                 Please use NPMI_LOGLEVEL with 'debug' or 'trace'
   NPMI_FORCE     Force (re)installation of deps
   NPMI_PRECACHE  Pre-cache command
   NPMI_TEMP_DIR  Use specified temp directory when creating archives (Default: system temp)
@@ -98,7 +98,7 @@ func ParseFlags() (*npmi.Options, error) {
 		return nil, fmt.Errorf("could not parse env options: %+v", err)
 	}
 
-	flag.BoolVar(&options.Verbose, "verbose", options.Verbose, "Verbose output, DEPRECATED\nPlease use the -loglevel flag or NPMI_LOGLEVEL env variable with 'debug' or 'trace'")
+	flag.BoolVar(&options.Verbose, "verbose", options.Verbose, "Verbose output, DEPRECATED\nPlease use -loglevel with 'debug' or 'trace'")
 	flag.BoolVar(&options.Force, "force", options.Force, "Force (re)installation of NPM deps and update cache(s)")
 	flag.BoolVar(&options.UseLocalCache, "local", options.UseLocalCache, "Use local cache")
 	flag.String("loglevel", "info", "Log level. One of info|debug|trace")
