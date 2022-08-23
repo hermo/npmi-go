@@ -141,18 +141,18 @@ func (m *main) installFromNpm() error {
 	stdout, stderr, err := m.installer.Run()
 	if err != nil {
 		log.Error("failed", "error", err, "stderr", hclog.Quote(stderr))
-		return fmt.Errorf("installPackages: %v", err)
+		return err
 	}
 
 	log.Trace("complete", "stdout", hclog.Quote(stdout))
 
 	if !files.DirectoryExists(m.modulesDirectory) {
-		return fmt.Errorf("post-install: Modules directory '%s' not present after NPM install", m.modulesDirectory)
+		return fmt.Errorf("Modules directory '%s' not present after NPM install", m.modulesDirectory)
 	}
 
 	err = m.runPreCacheCommand()
 	if err != nil {
-		return fmt.Errorf("pre-cache: %v: %s", err, stderr)
+		return fmt.Errorf("preCache: %v: %s", err, stderr)
 	}
 
 	log.Trace("complete")
@@ -162,13 +162,13 @@ func (m *main) installFromNpm() error {
 func (m *main) cacheInstalledPackages(cacheKey string) error {
 	archiveFilename, err := m.createArchive(cacheKey)
 	if err != nil {
-		return fmt.Errorf("create-archive: %v", err)
+		return fmt.Errorf("createArchive: %v", err)
 	}
 	defer m.removeArchiveAfterCaching(archiveFilename)
 
 	err = m.storeArchiveInCache(cacheKey, archiveFilename)
 	if err != nil {
-		return fmt.Errorf("store-archive: %v", err)
+		return fmt.Errorf("cacheArchive: %v", err)
 	}
 	return nil
 }
@@ -206,7 +206,7 @@ func createArchiveFilename(cacheKey string) string {
 }
 
 func (m *main) storeArchiveInCache(cacheKey string, archiveFilename string) error {
-	log := m.log.Named("cache")
+	log := m.log.Named("cacheArchive")
 	log.Trace("start")
 
 	archiveFile, err := os.Open(archiveFilename)
