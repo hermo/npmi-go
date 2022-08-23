@@ -12,6 +12,12 @@ import (
 	"github.com/hermo/npmi-go/pkg/hash"
 )
 
+var (
+	Version    = "dev"
+	Commit     = "none"
+	CommitDate = "unknown"
+)
+
 const (
 	defaultModulesDirectory = "node_modules"
 	defaultLockFile         = "package-lock.json"
@@ -64,7 +70,7 @@ func NewWithConfig(options *Options, config *Config) (*main, error) {
 
 // Run determines and performs the steps required to install the desired dependencies
 func (m *main) Run() error {
-	m.log.Trace("start")
+	m.log.Info("Starting installation", "version", Version)
 	cacheKey, err := m.createCacheKey()
 	if err != nil {
 		return err
@@ -96,7 +102,7 @@ func (m *main) Run() error {
 	}
 
 	m.log.Trace("complete")
-	m.log.Debug("Installation complete")
+	m.log.Info("Installation complete")
 	return nil
 }
 

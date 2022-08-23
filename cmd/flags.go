@@ -11,12 +11,6 @@ import (
 	"github.com/hermo/npmi-go/pkg/npmi"
 )
 
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-)
-
 const (
 	usage = `npmi-go %s, commit %s, built at %s.
 npmi-go installs NPM packages from a cache to speed up repeating installations.
@@ -117,7 +111,7 @@ func ParseFlags() (*npmi.Options, error) {
 	flag.StringVar(&options.TempDir, "temp-dir", options.TempDir, "Temporary directory for archive creation")
 
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), usage, version, commit, date)
+		fmt.Fprintf(flag.CommandLine.Output(), usage, npmi.Version, npmi.Commit, npmi.CommitDate)
 		flag.PrintDefaults()
 	}
 

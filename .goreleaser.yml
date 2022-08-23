@@ -22,9 +22,9 @@ builds:
     flags:
       - -trimpath
     ldflags: >-
-      -s -w -X github.com/hermo/npmi-go/cmd.version={{.Version}}
-      -X github.com/hermo/npmi-go/cmd.commit={{.Commit}}
-      -X github.com/hermo/npmi-go/cmd.date={{ .CommitDate }}
+      -s -w -X github.com/hermo/npmi-go/pkg/npmi.Version={{.Version}}
+      -X github.com/hermo/npmi-go/pkg/npmi.Commit={{.Commit}}
+      -X github.com/hermo/npmi-go/pkg/npmi.CommitDate={{ .CommitDate }}
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
 changelog:
