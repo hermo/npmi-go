@@ -3,7 +3,6 @@ package cmd
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"reflect"
 
@@ -88,15 +87,15 @@ func ParseFlags() (*npmi.Options, error) {
 	if err := env.ParseWithFuncs(options, map[reflect.Type]env.ParserFunc{
 		reflect.TypeOf(npmi.LogLevel(0)): logLevelParser,
 	}); err != nil {
-		log.Fatalf("Could not parse env options: %+v", err)
+		return nil, fmt.Errorf("could not parse env options: %+v", err)
 	}
 
 	if err := env.Parse(localCache); err != nil {
-		log.Fatalf("Could not parse env options: %+v", err)
+		return nil, fmt.Errorf("could not parse env options: %+v", err)
 	}
 
 	if err := env.Parse(minioCache); err != nil {
-		log.Fatalf("Could not parse env options: %+v", err)
+		return nil, fmt.Errorf("could not parse env options: %+v", err)
 	}
 
 	flag.BoolVar(&options.Verbose, "verbose", options.Verbose, "Verbose output, DEPRECATED\nPlease use the -loglevel flag or NPMI_LOGLEVEL env variable with 'debug' or 'trace'")
@@ -121,19 +120,21 @@ func ParseFlags() (*npmi.Options, error) {
 	}
 
 	flag.Parse()
-	parseLogLevel(options)
+	if err := parseLogLevel(options); err != nil {
+		return nil, err
+	}
 
 	return options, nil
 }
 
-func parseLogLevel(options *npmi.Options) {
+func parseLogLevel(options *npmi.Options) (err error) {
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "loglevel" {
 			value := f.Value.String()
 			options.LogLevel = npmi.LogLevelFromString(value)
 
 			if options.LogLevel == npmi.NoLevel {
-				log.Fatalf("Could not parse command line args: invalid loglevel '%s'", value)
+				err = fmt.Errorf("could not parse command line args: invalid loglevel '%s'", value)
 			}
 		}
 	})
@@ -142,4 +143,5 @@ func parseLogLevel(options *npmi.Options) {
 	if options.Verbose {
 		options.LogLevel = npmi.Trace
 	}
+	return err
 }

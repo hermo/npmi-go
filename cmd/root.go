@@ -14,7 +14,7 @@ func Execute() {
 		log := hclog.New(&hclog.LoggerOptions{
 			Name: "npmi",
 		})
-		log.Error("Flag parsing failed: %s", err)
+		log.Error("Flag parsing failed", "error", err)
 		os.Exit(1)
 	}
 
