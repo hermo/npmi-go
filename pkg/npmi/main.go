@@ -34,28 +34,22 @@ type main struct {
 }
 
 // New builds a configuration for the current runtime and returns a pre-configured NPMI main
-func New(options *Options) (*main, error) {
+func New(options *Options, log hclog.Logger) (*main, error) {
 	builder := NewConfigBuilder()
 	builder.WithNodeAndNpmFromPath()
 	config, err := builder.Build()
 	if err != nil {
 		return nil, err
 	}
-	return NewWithConfig(options, config)
+	return NewWithConfig(options, config, log)
 }
 
 // NewWithConfig creates a NPMI main using the supplied options and config
-func NewWithConfig(options *Options, config *Config) (*main, error) {
+func NewWithConfig(options *Options, config *Config, log hclog.Logger) (*main, error) {
 	caches, err := initCaches(options)
 	if err != nil {
 		return nil, fmt.Errorf("cache init error: %v", err)
 	}
-
-	log := hclog.New(&hclog.LoggerOptions{
-		Name:       "npmi",
-		Level:      hclog.LevelFromString(options.LogLevel.String()),
-		JSONFormat: false,
-	})
 
 	return &main{
 		modulesDirectory: defaultModulesDirectory,

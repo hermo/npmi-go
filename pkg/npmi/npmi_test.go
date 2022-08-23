@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hermo/npmi-go/pkg/cmd"
 	"github.com/hermo/npmi-go/pkg/files"
 )
@@ -53,7 +54,12 @@ func TestNpmiCanBeCreated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = NewWithConfig(options, config)
+
+	log := hclog.New(&hclog.LoggerOptions{
+		Name:  "npmi",
+		Level: hclog.Info,
+	})
+	_, err = NewWithConfig(options, config, log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +103,11 @@ func TestNpmiCanBeRun(t *testing.T) {
 	}
 	config.nodeBinary = "/bin/node"
 	config.npmBinary = "/bin/npm"
-	m, err := NewWithConfig(options, config)
+	log := hclog.New(&hclog.LoggerOptions{
+		Name:  "npmi",
+		Level: hclog.Info,
+	})
+	m, err := NewWithConfig(options, config, log)
 	if err != nil {
 		t.Fatal(err)
 	}

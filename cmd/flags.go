@@ -28,6 +28,9 @@ ENVIRONMENT VARIABLES:
 Use the following env variables to set default options.
 
   NPMI_LOGLEVEL  Log level. One of info|debug|trace (Default: "info")
+  NPMI_JSON      Use JSON for log output (Default: false)
+  NPMI_VERBOSE   Verbose output. DEPRECATED
+                 Please use the -loglevel flag or NPMI_LOGLEVEL env variable with 'debug' or 'trace'
   NPMI_FORCE     Force (re)installation of deps
   NPMI_PRECACHE  Pre-cache command
   NPMI_TEMP_DIR  Use specified temp directory when creating archives (Default: system temp)
@@ -99,6 +102,7 @@ func ParseFlags() (*npmi.Options, error) {
 	flag.BoolVar(&options.Force, "force", options.Force, "Force (re)installation of NPM deps and update cache(s)")
 	flag.BoolVar(&options.UseLocalCache, "local", options.UseLocalCache, "Use local cache")
 	flag.String("loglevel", "info", "Log level. One of info|debug|trace")
+	flag.BoolVar(&options.Json, "json", options.Json, "Use JSON output")
 	flag.StringVar(&localCache.Dir, "local-dir", options.LocalCache.Dir, "Local cache directory")
 	flag.BoolVar(&options.UseMinioCache, "minio", options.UseMinioCache, "Use Minio for caching")
 	flag.StringVar(&minioCache.Endpoint, "minio-endpoint", minioCache.Endpoint, "Minio endpoint")

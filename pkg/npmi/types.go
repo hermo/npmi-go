@@ -65,4 +65,5 @@ type Options struct {
 	TempDir         string `env:"NPMI_TEMP_DIR"`
 	UseLocalCache   bool   `env:"NPMI_LOCAL"`
 	UseMinioCache   bool   `env:"NPMI_MINIO"`
+	Json            bool   `env:"NPMI_JSON"`
 }

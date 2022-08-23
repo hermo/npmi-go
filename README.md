@@ -164,6 +164,9 @@ ENVIRONMENT VARIABLES:
 Use the following env variables to set default options.
 
   NPMI_LOGLEVEL  Log level. One of info|debug|trace (Default: "info")
+  NPMI_JSON      Use JSON for log output (Default: false)
+  NPMI_VERBOSE   Verbose output. DEPRECATED
+                 Please use the -loglevel flag or NPMI_LOGLEVEL env variable with 'debug' or 'trace'
   NPMI_FORCE     Force (re)installation of deps
   NPMI_PRECACHE  Pre-cache command
 
