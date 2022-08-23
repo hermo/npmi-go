@@ -3,6 +3,7 @@ package npmi
 import (
 	"testing"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hermo/npmi-go/pkg/cmd"
 )
 
@@ -17,7 +18,12 @@ func TestNpmInstaller_Run(t *testing.T) {
 		runner:         runner,
 		productionMode: false,
 	}
-	sut := NewNpmInstaller(nc)
+
+	log := hclog.New(&hclog.LoggerOptions{
+		Name:  "npmi",
+		Level: hclog.Info,
+	})
+	sut := NewNpmInstaller(nc, log)
 
 	_, _, err := sut.Run()
 	if err != nil {

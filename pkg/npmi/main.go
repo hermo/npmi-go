@@ -46,13 +46,10 @@ func NewWithConfig(options *Options, config *Config) (*main, error) {
 	}
 
 	log := hclog.New(&hclog.LoggerOptions{
-		Name:  "npmi",
-		Level: hclog.Info,
+		Name:       "npmi",
+		Level:      hclog.LevelFromString(options.LogLevel.String()),
+		JSONFormat: false,
 	})
-
-	if options.Verbose {
-		log.SetLevel(hclog.Debug)
-	}
 
 	return &main{
 		modulesDirectory: defaultModulesDirectory,
@@ -60,7 +57,7 @@ func NewWithConfig(options *Options, config *Config) (*main, error) {
 		options:          options,
 		log:              log,
 		platform:         config.Platform,
-		installer:        NewNpmInstaller(config),
+		installer:        NewNpmInstaller(config, log.Named("npmInstaller")),
 		caches:           caches,
 	}, nil
 }

@@ -1,5 +1,45 @@
 package npmi
 
+import "strings"
+
+type LogLevel int32
+
+const (
+	NoLevel LogLevel = iota
+	Info
+	Debug
+	Trace
+)
+
+func LogLevelFromString(levelStr string) LogLevel {
+	levelStr = strings.ToLower(levelStr)
+	switch levelStr {
+	case "trace":
+		return Trace
+	case "debug":
+		return Debug
+	case "info":
+		return Info
+	default:
+		return NoLevel
+	}
+}
+
+func (l LogLevel) String() string {
+	switch l {
+	case Trace:
+		return "trace"
+	case Debug:
+		return "debug"
+	case Info:
+		return "info"
+	case NoLevel:
+		return "none"
+	default:
+		return "unknown"
+	}
+}
+
 // MinioCacheOptions contains configuration for Minio Cache
 type MinioCacheOptions struct {
 	Endpoint        string `env:"NPMI_MINIO_ENDPOINT"`
@@ -17,12 +57,12 @@ type LocalCacheOptions struct {
 
 // Options describes the runtime configuration
 type Options struct {
-	Verbose         bool `env:"NPMI_VERBOSE"`
 	Force           bool `env:"NPMI_FORCE"`
-	UseLocalCache   bool `env:"NPMI_LOCAL"`
-	UseMinioCache   bool `env:"NPMI_MINIO"`
-	MinioCache      *MinioCacheOptions
 	LocalCache      *LocalCacheOptions
+	LogLevel        LogLevel `env:"NPMI_LOGLEVEL"`
+	MinioCache      *MinioCacheOptions
 	PrecacheCommand string `env:"NPMI_PRECACHE"`
 	TempDir         string `env:"NPMI_TEMP_DIR"`
+	UseLocalCache   bool   `env:"NPMI_LOCAL"`
+	UseMinioCache   bool   `env:"NPMI_MINIO"`
 }

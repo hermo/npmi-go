@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/hermo/npmi-go/pkg/npmi"
@@ -32,7 +33,7 @@ USAGE:
 ENVIRONMENT VARIABLES:
 Use the following env variables to set default options.
 
-  NPMI_VERBOSE   Verbose output
+  NPMI_LOGLEVEL  Log level. One of info|debug|trace (Default: "info")
   NPMI_FORCE     Force (re)installation of deps
   NPMI_PRECACHE  Pre-cache command
   NPMI_TEMP_DIR  Use specified temp directory when creating archives (Default: system temp)
@@ -57,8 +58,8 @@ OPTIONS:
 // ParseFlags parses command line flags
 func ParseFlags() (*npmi.Options, error) {
 	options := &npmi.Options{
-		Verbose: false,
-		Force:   false,
+		LogLevel: npmi.Info,
+		Force:    false,
 
 		UseLocalCache:   true,
 		UseMinioCache:   false,
@@ -79,7 +80,17 @@ func ParseFlags() (*npmi.Options, error) {
 	options.LocalCache = localCache
 	options.MinioCache = minioCache
 
-	if err := env.Parse(options); err != nil {
+	logLevelParser := func(v string) (interface{}, error) {
+		level := npmi.LogLevelFromString(v)
+		if level == npmi.NoLevel {
+			return nil, fmt.Errorf("invalid loglevel '%s'", v)
+		}
+		return level, nil
+	}
+
+	if err := env.ParseWithFuncs(options, map[reflect.Type]env.ParserFunc{
+		reflect.TypeOf(npmi.LogLevel(0)): logLevelParser,
+	}); err != nil {
 		log.Fatalf("Could not parse env options: %+v", err)
 	}
 
@@ -91,9 +102,9 @@ func ParseFlags() (*npmi.Options, error) {
 		log.Fatalf("Could not parse env options: %+v", err)
 	}
 
-	flag.BoolVar(&options.Verbose, "verbose", options.Verbose, "Verbose output")
 	flag.BoolVar(&options.Force, "force", options.Force, "Force (re)installation of NPM deps and update cache(s)")
 	flag.BoolVar(&options.UseLocalCache, "local", options.UseLocalCache, "Use local cache")
+	flag.String("loglevel", "info", "Log level. One of info|debug|trace")
 	flag.StringVar(&localCache.Dir, "local-dir", options.LocalCache.Dir, "Local cache directory")
 	flag.BoolVar(&options.UseMinioCache, "minio", options.UseMinioCache, "Use Minio for caching")
 	flag.StringVar(&minioCache.Endpoint, "minio-endpoint", minioCache.Endpoint, "Minio endpoint")
@@ -111,5 +122,21 @@ func ParseFlags() (*npmi.Options, error) {
 	}
 
 	flag.Parse()
+	parseLogLevel(options)
+
 	return options, nil
+}
+
+func parseLogLevel(options *npmi.Options) {
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "loglevel" {
+			value := f.Value.String()
+			options.LogLevel = npmi.LogLevelFromString(value)
+
+			if options.LogLevel == npmi.NoLevel {
+				log.Fatalf("Could not parse command line args: invalid loglevel '%s'", value)
+			}
+		}
+	})
+
 }

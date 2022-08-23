@@ -92,7 +92,7 @@ docker run -v "$PWD/test/minio/config.json:/root/.mc/config.json" minio/mc --ins
 4. Use the dummy project under `testdata/` and run npmi-go using minio:
 ```
 cd testdata
-../npmi-go -verbose \
+../npmi-go -loglevel debug \
 -minio=1 \
 -minio-endpoint=localhost:9000 \
 -minio-bucket=npmi \
@@ -163,7 +163,7 @@ USAGE:
 ENVIRONMENT VARIABLES:
 Use the following env variables to set default options.
 
-  NPMI_VERBOSE   Verbose output
+  NPMI_LOGLEVEL  Log level. One of info|debug|trace (Default: "info")
   NPMI_FORCE     Force (re)installation of deps
   NPMI_PRECACHE  Pre-cache command
 
@@ -188,6 +188,8 @@ OPTIONS:
         Use local cache (default true)
   -local-dir string
         Local cache directory (default "/tmp")
+  -loglevel string
+        Log level. One of info|debug|trace (default "info")
   -minio
         Use Minio for caching
   -minio-access-key-id string
@@ -206,8 +208,6 @@ OPTIONS:
         Run the following shell command before caching packages
   -temp-dir string
         Temporary directory for archive creation (default "/tmp")
-  -verbose
-        Verbose output
 ```
 
 ## Configuration with .npmirc

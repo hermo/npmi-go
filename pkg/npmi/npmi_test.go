@@ -78,7 +78,7 @@ func TestNpmiCanBeRun(t *testing.T) {
 	}
 
 	options := &Options{
-		Verbose: true,
+		LogLevel: Debug,
 		LocalCache: &LocalCacheOptions{
 			Dir: testDataCacheDir,
 		},
