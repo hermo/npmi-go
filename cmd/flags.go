@@ -99,6 +99,7 @@ func ParseFlags() (*npmi.Options, error) {
 		log.Fatalf("Could not parse env options: %+v", err)
 	}
 
+	flag.BoolVar(&options.Verbose, "verbose", options.Verbose, "Verbose output, DEPRECATED\nPlease use the -loglevel flag or NPMI_LOGLEVEL env variable with 'debug' or 'trace'")
 	flag.BoolVar(&options.Force, "force", options.Force, "Force (re)installation of NPM deps and update cache(s)")
 	flag.BoolVar(&options.UseLocalCache, "local", options.UseLocalCache, "Use local cache")
 	flag.String("loglevel", "info", "Log level. One of info|debug|trace")
@@ -137,4 +138,8 @@ func parseLogLevel(options *npmi.Options) {
 		}
 	})
 
+	// Allow the deprecated Verbose flag to override everything
+	if options.Verbose {
+		options.LogLevel = npmi.Trace
+	}
 }

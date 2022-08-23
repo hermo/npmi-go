@@ -65,6 +65,10 @@ func NewWithConfig(options *Options, config *Config, log hclog.Logger) (*main, e
 // Run determines and performs the steps required to install the desired dependencies
 func (m *main) Run() error {
 	m.log.Info("Starting installation", "version", Version)
+
+	if m.options.Verbose {
+		m.log.Warn("-verbose and NPMI_VERBOSE are deprecated. Please use the -loglevel flag or NPMI_LOGLEVEL env variable with 'debug' or 'trace'")
+	}
 	cacheKey, err := m.createCacheKey()
 	if err != nil {
 		return err

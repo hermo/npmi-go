@@ -57,6 +57,7 @@ type LocalCacheOptions struct {
 
 // Options describes the runtime configuration
 type Options struct {
+	Verbose         bool `env:"NPMI_VERBOSE"`
 	Force           bool `env:"NPMI_FORCE"`
 	LocalCache      *LocalCacheOptions
 	LogLevel        LogLevel `env:"NPMI_LOGLEVEL"`
