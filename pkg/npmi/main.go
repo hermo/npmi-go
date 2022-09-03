@@ -316,13 +316,13 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 		cleanupLog := extractLog.Named("cleanup")
 		cleanupLog.Trace("start")
 
-		numRemoved, err := files.RemoveFilesNotPresentInManifest(m.modulesDirectory, archiveManifest)
+		filesRemoved, err := files.RemoveFilesNotPresentInManifest(m.modulesDirectory, archiveManifest)
 		if err != nil {
 			cleanupLog.Error("failed", "error", err)
 			return false, err
 		}
 
-		cleanupLog.Trace("complete", "numFilesRemoved", numRemoved)
+		cleanupLog.Trace("complete", "numFilesRemoved", len(filesRemoved), "filesRemoved", filesRemoved)
 		extractLog.Trace("complete")
 		cLog.Debug("packages successfully installed from cache")
 

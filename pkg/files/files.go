@@ -1,7 +1,6 @@
 package files
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -32,8 +31,8 @@ func IsExistingFile(path string) (bool, error) {
 
 // RemoveFilesNotPresentInManifest compares a real directory tree with a list of
 // files to keep and removes extra files
-func RemoveFilesNotPresentInManifest(directory string, filesTokeep []string) (int, error) {
-	numRemoved := 0
+func RemoveFilesNotPresentInManifest(directory string, filesTokeep []string) ([]string, error) {
+	var filesRemoved []string
 
 	// Convert manifest into a map
 	// TODO: Just create the manifest in map for to begin with
@@ -42,7 +41,7 @@ func RemoveFilesNotPresentInManifest(directory string, filesTokeep []string) (in
 		m[f] = true
 	}
 
-	return numRemoved, filepath.Walk(directory, func(file string, fi os.FileInfo, err error) error {
+	return filesRemoved, filepath.Walk(directory, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -53,12 +52,11 @@ func RemoveFilesNotPresentInManifest(directory string, filesTokeep []string) (in
 
 		// Delete files not present in manifest
 		if !m[file] {
-			fmt.Printf("DEL: %s\n", file)
+			filesRemoved = append(filesRemoved, file)
 			err = os.Remove(file)
 			if err != nil {
 				return err
 			}
-			numRemoved++
 		}
 		return nil
 	})
