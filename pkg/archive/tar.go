@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -29,32 +28,14 @@ func Create(filename string, src string) error {
 }
 
 type badpath struct {
-	re             *regexp.Regexp
 	allowDoubleDot bool
 }
 
 func NewBadPath(allowDoubleDot bool) *badpath {
-	// Match known evil characters
-	// Windows bad chars and devices from https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
-	var re *regexp.Regexp
-	var err error
-	if allowDoubleDot {
-		re, err = regexp.Compile("(<|>|:|\"|\\||\\?|\\*|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
-	} else {
-		re, err = regexp.Compile("(<|>|:|\"|\\||\\?|\\*|\\.\\.|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
-	}
-	if err != nil {
-		panic(err)
-	}
-
-	return &badpath{re, allowDoubleDot}
+	return &badpath{allowDoubleDot}
 }
 
 func (bp *badpath) IsBad(path string) bool {
-	return bp.re.MatchString(path)
-}
-
-func (bp *badpath) IsBad2(path string) bool {
 	if strings.ContainsAny(path, "<|>:\"*?\\") {
 		return true
 	}
@@ -78,7 +59,6 @@ func (bp *badpath) IsBad2(path string) bool {
 			}
 		}
 	}
-	// return bp.re.MatchString(path)
 	return false
 }
 

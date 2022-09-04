@@ -430,9 +430,6 @@ func TestBadPath(t *testing.T) {
 			if bp.IsBad(tt.Path) != tt.Expected {
 				t.Errorf("IsBad(%s) did not return %v", tt.Path, tt.Expected)
 			}
-			if bp.IsBad2(tt.Path) != tt.Expected {
-				t.Errorf("IsBad2(%s) did not return %v", tt.Path, tt.Expected)
-			}
 		})
 	}
 }
@@ -442,13 +439,5 @@ func BenchmarkBadPath(b *testing.B) {
 	path := "node_modules/foo_bar/baz.js/somepath"
 	for i := 0; i < b.N; i++ {
 		bp.IsBad(path)
-	}
-}
-
-func BenchmarkBadPath2(b *testing.B) {
-	bp := NewBadPath(false)
-	path := "node_modules/foo_bar/baz.js/somepath"
-	for i := 0; i < b.N; i++ {
-		bp.IsBad2(path)
 	}
 }
