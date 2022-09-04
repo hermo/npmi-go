@@ -378,14 +378,55 @@ func BenchmarkExtraFiles(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		f.Seek(0, io.SeekStart)
 
-		manifest, err := Extract(f)
+		_, err := Extract(f)
 		if err != nil {
 			b.Fatalf("Extract failed: %v", err)
 		}
+	}
+}
 
-		wantManifestLen := 18573
-		if len(manifest) != wantManifestLen {
-			b.Fatalf("Manifest length=%d,want=%d", len(manifest), wantManifestLen)
-		}
+func TestBadPath(t *testing.T) {
+	tests := []struct {
+		allowDoubleDot bool
+		Path           string
+		Expected       bool
+	}{
+		// Evil inputs, double dots not allowed
+		{false, "/evil1.txt", true},
+		{false, "evil11..txt", true},
+		{false, "../evil2.txt", true},
+		{false, "C:/Users/Public/evil3.txt", true},
+		{false, "C:|Users/Public/evil4.txt", true},
+		{false, "COM1>", true},
+		{false, "CON", true},
+		{false, "NUL", true},
+		{false, "C:\\Users\\Public\\evil5.txt", true},
+
+		// Evil inputs, double dots allowed
+		{true, "/../evil_double_dots_6.txt", true},
+		{true, "/../evil_double_dots_61..txt", true},
+
+		// Good inputs, double dots disallowed
+		{false, "foo/bar//double_dots7.txt", false},
+
+		// Good inputs, double dots allowed
+		{true, "../double_dots8.txt", false},
+		{true, "double_dots9..txt", false},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("allowDoubleDots: %v Path: %s", tt.allowDoubleDot, tt.Path), func(t *testing.T) {
+			bp := NewBadPath(tt.allowDoubleDot)
+			if bp.IsBad(tt.Path) != tt.Expected {
+				t.Errorf("IsBad(%s) did not return %v", tt.Path, tt.Expected)
+			}
+		})
+	}
+}
+
+func BenchmarkBadPath(b *testing.B) {
+	bp := NewBadPath(false)
+	path := "node_modules/foo_bar/baz.js/somepath"
+	for i := 0; i < b.N; i++ {
+		bp.IsBad(path)
 	}
 }

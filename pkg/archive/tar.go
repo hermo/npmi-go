@@ -28,6 +28,32 @@ func Create(filename string, src string) error {
 	return nil
 }
 
+type badpath struct {
+	re             *regexp.Regexp
+	allowDoubleDot bool
+}
+
+func NewBadPath(allowDoubleDot bool) *badpath {
+	// Match known evil characters
+	// Windows bad chars and devices from https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+	var re *regexp.Regexp
+	var err error
+	if allowDoubleDot {
+		re, err = regexp.Compile("(<|>|:|\"|\\||\\?|\\*|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
+	} else {
+		re, err = regexp.Compile("(<|>|:|\"|\\||\\?|\\*|\\.\\.|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
+	}
+	if err != nil {
+		panic(err)
+	}
+
+	return &badpath{re, allowDoubleDot}
+}
+
+func (bp *badpath) IsBad(path string) bool {
+	return bp.re.MatchString(path)
+}
+
 // Extract all files from an archive to current directory
 func Extract(reader io.Reader) ([]string, error) {
 	cwd, err := os.Getwd()
@@ -44,14 +70,7 @@ func Extract(reader io.Reader) ([]string, error) {
 
 	tr := tar.NewReader(gzr)
 
-	// Match known evil characters
-	// Windows bad chars and devices from https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
-	badChars, err := regexp.Compile("(<|>|:|\"|\\||\\?|\\*|\\.\\.|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
-
-	if err != nil {
-		return nil, fmt.Errorf("could not compile regexp: %v", err)
-	}
-
+	badPath := NewBadPath(false)
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -72,7 +91,7 @@ func Extract(reader io.Reader) ([]string, error) {
 		target := header.Name
 		target = filepath.ToSlash(filepath.Clean(target))
 
-		if badChars.MatchString(target) {
+		if badPath.IsBad(target) {
 			return nil, fmt.Errorf("invalid path: contains bad characters")
 		}
 
@@ -169,12 +188,7 @@ func createTarGz(src string, writers ...io.Writer) error {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
-	// Match known evil characters
-	badChars, err := regexp.Compile("(<|>|:|\"|\\||\\?|\\*|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
-
-	if err != nil {
-		return fmt.Errorf("could not compile regexp: %v", err)
-	}
+	badPath := NewBadPath(true)
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -208,7 +222,7 @@ func createTarGz(src string, writers ...io.Writer) error {
 
 			//			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", path, pathDir, link, linkFull)
 
-			if badChars.MatchString(link) {
+			if badPath.IsBad(link) {
 				return fmt.Errorf("invalid path: contains bad characters: %s", link)
 			}
 
