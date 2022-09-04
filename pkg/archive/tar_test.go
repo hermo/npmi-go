@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -343,5 +344,48 @@ func removeTestDir(testDir string) {
 	err = os.RemoveAll(testDir)
 	if err != nil {
 		fmt.Printf("ERROR: could not remove temp directory: %v", err)
+	}
+}
+
+func BenchmarkExtraFiles(b *testing.B) {
+	testDir, err := prepareTestDir()
+	if err != nil {
+		b.Fatalf("Can't create temporary test directory: %v", err)
+	}
+
+	defer removeTestDir(testDir)
+
+	err = os.Mkdir("extract", 0700)
+	if err != nil {
+		b.Fatalf("Could not create directory: %v", err)
+	}
+
+	err = os.Chdir("extract")
+	if err != nil {
+		b.Fatalf("Can't chdir to test directory: %v", err)
+	}
+	testArchive, err := filepath.Abs(fmt.Sprintf("%s/../../bench/extract/test.tgz", getBaseDir()))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	f, err := os.Open(testArchive)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer f.Close()
+
+	for i := 0; i < b.N; i++ {
+		f.Seek(0, io.SeekStart)
+
+		manifest, err := Extract(f)
+		if err != nil {
+			b.Fatalf("Extract failed: %v", err)
+		}
+
+		wantManifestLen := 18573
+		if len(manifest) != wantManifestLen {
+			b.Fatalf("Manifest length=%d,want=%d", len(manifest), wantManifestLen)
+		}
 	}
 }
