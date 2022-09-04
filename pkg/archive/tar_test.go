@@ -397,7 +397,13 @@ func TestBadPath(t *testing.T) {
 		{false, "../evil2.txt", true},
 		{false, "C:/Users/Public/evil3.txt", true},
 		{false, "C:|Users/Public/evil4.txt", true},
+		{false, "<", true},
+		{false, "<foo", true},
+		{false, " <foo2", true},
+		{false, "bar>", true},
 		{false, "COM1>", true},
+		{false, "LPT3", true},
+		{false, "COM9", true},
 		{false, "CON", true},
 		{false, "NUL", true},
 		{false, "C:\\Users\\Public\\evil5.txt", true},
@@ -407,17 +413,25 @@ func TestBadPath(t *testing.T) {
 		{true, "/../evil_double_dots_61..txt", true},
 
 		// Good inputs, double dots disallowed
-		{false, "foo/bar//double_dots7.txt", false},
+		{false, "kissa7.txt", false},
+		{false, "foo/bar//double_dots71.txt", false},
+		{false, "COM0", false},
+		{false, "COM", false},
 
 		// Good inputs, double dots allowed
 		{true, "../double_dots8.txt", false},
 		{true, "double_dots9..txt", false},
+		{true, "LPT0", false},
+		{true, "LPT", false},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("allowDoubleDots: %v Path: %s", tt.allowDoubleDot, tt.Path), func(t *testing.T) {
 			bp := NewBadPath(tt.allowDoubleDot)
 			if bp.IsBad(tt.Path) != tt.Expected {
 				t.Errorf("IsBad(%s) did not return %v", tt.Path, tt.Expected)
+			}
+			if bp.IsBad2(tt.Path) != tt.Expected {
+				t.Errorf("IsBad2(%s) did not return %v", tt.Path, tt.Expected)
 			}
 		})
 	}
@@ -428,5 +442,13 @@ func BenchmarkBadPath(b *testing.B) {
 	path := "node_modules/foo_bar/baz.js/somepath"
 	for i := 0; i < b.N; i++ {
 		bp.IsBad(path)
+	}
+}
+
+func BenchmarkBadPath2(b *testing.B) {
+	bp := NewBadPath(false)
+	path := "node_modules/foo_bar/baz.js/somepath"
+	for i := 0; i < b.N; i++ {
+		bp.IsBad2(path)
 	}
 }

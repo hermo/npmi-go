@@ -54,6 +54,34 @@ func (bp *badpath) IsBad(path string) bool {
 	return bp.re.MatchString(path)
 }
 
+func (bp *badpath) IsBad2(path string) bool {
+	if strings.ContainsAny(path, "<|>:\"*?\\") {
+		return true
+	}
+
+	if !bp.allowDoubleDot {
+		if strings.Contains(path, "..") {
+			return true
+		}
+	}
+	bad := []string{"/", "CON", "PRN", "AUX", "NUL"}
+	for _, s := range bad {
+		if strings.HasPrefix(path, s) {
+			return true
+		}
+	}
+	semibad := []string{"COM", "LPT"}
+	for _, s := range semibad {
+		if strings.HasPrefix(path, s) && len(path) > 3 {
+			if path[3] >= '1' && path[3] <= '9' {
+				return true
+			}
+		}
+	}
+	// return bp.re.MatchString(path)
+	return false
+}
+
 // Extract all files from an archive to current directory
 func Extract(reader io.Reader) ([]string, error) {
 	cwd, err := os.Getwd()
