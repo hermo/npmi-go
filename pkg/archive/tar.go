@@ -130,19 +130,18 @@ func Extract(reader io.Reader) ([]string, error) {
 
 			// copy over contents
 			if _, err := io.Copy(f, tr); err != nil {
+				f.Close()
 				return nil, err
 			}
 
 			// manually close here after each file operation; defering would cause each file close
 			// to wait until all operations have completed.
 			f.Close()
-			err = os.Chtimes(target, time.Now(), header.FileInfo().ModTime())
-			if err != nil {
+			if err = os.Chtimes(target, time.Now(), header.FileInfo().ModTime()); err != nil {
 				return nil, err
 			}
 
-			err = os.Chmod(target, header.FileInfo().Mode())
-			if err != nil {
+			if err = os.Chmod(target, header.FileInfo().Mode()); err != nil {
 				return nil, err
 			}
 
