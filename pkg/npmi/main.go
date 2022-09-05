@@ -129,7 +129,7 @@ func initCaches(options *Options, log hclog.Logger) ([]cache.Cacher, error) {
 	}
 
 	if options.UseMinioCache {
-		cache, err := initMinioCache(options.MinioCache)
+		cache, err := initMinioCache(options.MinioCache, log)
 		if err != nil {
 			return nil, fmt.Errorf("minio cache: %s", err)
 		}
@@ -334,10 +334,12 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 	return foundInCache, nil
 }
 
-func initMinioCache(options *MinioCacheOptions) (cache.Cacher, error) {
-	cache := cache.NewMinioCache(options.Endpoint, options.AccessKeyID, options.SecretAccessKey, options.Bucket, options.UseTLS, options.InsecureTLS)
+func initMinioCache(options *MinioCacheOptions, log hclog.Logger) (cache.Cacher, error) {
+	mLog := log.Named("minio")
+	cache := cache.NewMinioCache(options.Endpoint, options.AccessKeyID, options.SecretAccessKey, options.Bucket, options.UseTLS, options.InsecureTLS, mLog)
 	err := cache.Dial()
 	if err != nil {
+		mLog.Error("Dial failed", "error", err)
 		return nil, err
 	}
 	return cache, nil
