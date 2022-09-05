@@ -46,7 +46,7 @@ func New(options *Options, log hclog.Logger) (*main, error) {
 
 // NewWithConfig creates a NPMI main using the supplied options and config
 func NewWithConfig(options *Options, config *Config, log hclog.Logger) (*main, error) {
-	caches, err := initCaches(options)
+	caches, err := initCaches(options, log.Named("cache"))
 	if err != nil {
 		return nil, fmt.Errorf("cache init error: %v", err)
 	}
@@ -118,10 +118,10 @@ func (m *main) createCacheKey() (string, error) {
 
 }
 
-func initCaches(options *Options) ([]cache.Cacher, error) {
+func initCaches(options *Options, log hclog.Logger) ([]cache.Cacher, error) {
 	var caches []cache.Cacher
 	if options.UseLocalCache {
-		cache, err := initLocalCache(options.LocalCache)
+		cache, err := initLocalCache(options.LocalCache, log)
 		if err != nil {
 			return nil, fmt.Errorf("local cache: %s", err)
 		}
@@ -134,6 +134,10 @@ func initCaches(options *Options) ([]cache.Cacher, error) {
 			return nil, fmt.Errorf("minio cache: %s", err)
 		}
 		caches = append(caches, cache)
+	}
+
+	if len(caches) == 0 {
+		log.Warn("No caches configured, no caching will be performed!")
 	}
 	return caches, nil
 }
@@ -151,7 +155,7 @@ func (m *main) installFromNpm() error {
 	log.Trace("complete", "stdout", hclog.Quote(stdout))
 
 	if !files.DirectoryExists(m.modulesDirectory) {
-		return fmt.Errorf("Modules directory '%s' not present after NPM install", m.modulesDirectory)
+		return fmt.Errorf("modules directory '%s' not present after NPM install", m.modulesDirectory)
 	}
 
 	err = m.runPreCacheCommand()
@@ -263,10 +267,6 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 	log := m.log.Named("cache")
 	log.Trace("start", "cacheKey", cacheKey)
 
-	if len(m.caches) == 0 {
-		log.Warn("No caches configured, cache lookup will always fail")
-	}
-
 	foundInCache = false
 	for _, cache := range m.caches {
 		cLog := log.Named(fmt.Sprint(cache))
@@ -343,6 +343,6 @@ func initMinioCache(options *MinioCacheOptions) (cache.Cacher, error) {
 	return cache, nil
 }
 
-func initLocalCache(options *LocalCacheOptions) (cache.Cacher, error) {
-	return cache.NewLocalCache(options.Dir)
+func initLocalCache(options *LocalCacheOptions, log hclog.Logger) (cache.Cacher, error) {
+	return cache.NewLocalCache(options.Dir, log.Named("local"))
 }
