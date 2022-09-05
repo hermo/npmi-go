@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/klauspost/pgzip"
 )
 
 // Create an archive file containing the contents of directory src
@@ -70,7 +72,7 @@ func Extract(reader io.Reader) ([]string, error) {
 	}
 
 	var manifest []string
-	gzr, err := gzip.NewReader(reader)
+	gzr, err := pgzip.NewReaderN(reader, 500e3, 50)
 	if err != nil {
 		return nil, err
 	}
