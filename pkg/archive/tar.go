@@ -47,14 +47,25 @@ func (bp *badpath) IsBad(path string) bool {
 			return true
 		}
 	}
-	bad := []string{"/", "CON", "PRN", "AUX", "NUL"}
-	for _, s := range bad {
-		if strings.HasPrefix(path, s) {
+
+	if path[0] == '/' {
+		return true
+	}
+
+	if strings.HasPrefix(path, " ") {
+		return true
+	}
+
+	path = strings.ToUpper(path)
+	windowDevices := []string{"CON", "PRN", "AUX", "NUL"}
+	for _, s := range windowDevices {
+		if path == s {
 			return true
 		}
 	}
-	semibad := []string{"COM", "LPT"}
-	for _, s := range semibad {
+
+	windowsDevicePrefixes := []string{"COM", "LPT"}
+	for _, s := range windowsDevicePrefixes {
 		if strings.HasPrefix(path, s) && len(path) > 3 {
 			if path[3] >= '1' && path[3] <= '9' {
 				return true

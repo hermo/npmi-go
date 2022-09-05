@@ -402,10 +402,14 @@ func TestBadPath(t *testing.T) {
 		{false, " <foo2", true},
 		{false, "bar>", true},
 		{false, "COM1>", true},
+		{false, "com3", true},
+		{false, "LpT7", true},
 		{false, "LPT3", true},
 		{false, "COM9", true},
+		{false, "win\\separator", true},
 		{false, "CON", true},
 		{false, "NUL", true},
+		{false, " Spaceman", true},
 		{false, "C:\\Users\\Public\\evil5.txt", true},
 
 		// Evil inputs, double dots allowed
@@ -417,15 +421,20 @@ func TestBadPath(t *testing.T) {
 		{false, "foo/bar//double_dots71.txt", false},
 		{false, "COM0", false},
 		{false, "COM", false},
+		{false, "Hello dolly", false},
 
 		// Good inputs, double dots allowed
 		{true, "../double_dots8.txt", false},
 		{true, "double_dots9..txt", false},
 		{true, "LPT0", false},
 		{true, "LPT", false},
+		{true, "COMA", false},
+		{true, "CONAIR", false},
+		{true, "NULL", false},
+		{true, "Program Files/my app.exe", false},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("allowDoubleDots: %v Path: %s", tt.allowDoubleDot, tt.Path), func(t *testing.T) {
+		t.Run(fmt.Sprintf("allowDoubleDots:%v,Path:%s", tt.allowDoubleDot, tt.Path), func(t *testing.T) {
 			bp := NewBadPath(tt.allowDoubleDot)
 			if bp.IsBad(tt.Path) != tt.Expected {
 				t.Errorf("IsBad(%s) did not return %v", tt.Path, tt.Expected)
