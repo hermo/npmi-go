@@ -347,7 +347,7 @@ func removeTestDir(testDir string) {
 	}
 }
 
-func BenchmarkExtraFiles(b *testing.B) {
+func BenchmarkExtract(b *testing.B) {
 	testDir, err := prepareTestDir()
 	if err != nil {
 		b.Fatalf("Can't create temporary test directory: %v", err)
