@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/caarlos0/env/v6 v6.9.3
 	github.com/hashicorp/go-hclog v1.2.2
-	github.com/minio/minio-go/v7 v7.0.34
+	github.com/minio/minio-go/v7 v7.0.35
 )
 
 require (
