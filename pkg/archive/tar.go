@@ -2,7 +2,6 @@ package archive
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -202,7 +201,7 @@ func createTarGz(src string, writers ...io.Writer) error {
 
 	mw := io.MultiWriter(writers...)
 
-	gzw := gzip.NewWriter(mw)
+	gzw := pgzip.NewWriter(mw)
 	defer gzw.Close()
 
 	tw := tar.NewWriter(gzw)
