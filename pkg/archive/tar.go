@@ -57,8 +57,8 @@ func (bp *badpath) IsBad(path string) bool {
 	}
 
 	path = strings.ToUpper(path)
-	windowDevices := []string{"CON", "PRN", "AUX", "NUL"}
-	for _, s := range windowDevices {
+	windowsDevices := []string{"CON", "PRN", "AUX", "NUL"}
+	for _, s := range windowsDevices {
 		if path == s {
 			return true
 		}
