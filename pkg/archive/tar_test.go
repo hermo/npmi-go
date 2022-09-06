@@ -450,3 +450,47 @@ func BenchmarkBadPath(b *testing.B) {
 		bp.IsBad(path)
 	}
 }
+
+func BenchmarkCreate(b *testing.B) {
+	testDir, err := prepareTestDir()
+	if err != nil {
+		b.Fatalf("Can't create temporary test directory: %v", err)
+	}
+
+	defer removeTestDir(testDir)
+
+	err = os.Mkdir("compress", 0700)
+	if err != nil {
+		b.Fatalf("Could not create directory: %v", err)
+	}
+
+	err = os.Chdir("compress")
+	if err != nil {
+		b.Fatalf("Can't chdir to test directory: %v", err)
+	}
+	testArchive, err := filepath.Abs(fmt.Sprintf("%s/../../bench/extract/test.tgz", getBaseDir()))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	f, err := os.Open(testArchive)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	_, err = Extract(f)
+	if err != nil {
+		b.Fatalf("Extract failed: %v", err)
+	}
+	f.Close()
+
+	for i := 0; i < b.N; i++ {
+		if err = Create("compressed.tgz", "node_modules"); err != nil {
+			b.Fatalf("Create failed: %v", err)
+		}
+
+		if err = os.Remove("compressed.tgz"); err != nil {
+			b.Fatalf("Remove failed: %v", err)
+		}
+	}
+}
