@@ -193,15 +193,13 @@ func Extract(reader io.Reader) ([]string, error) {
 }
 
 // createTarGz writes a given directory tree to a Gzipped TAR
-func createTarGz(src string, writers ...io.Writer) error {
+func createTarGz(src string, w io.Writer) error {
 
 	if _, err := os.Stat(src); err != nil {
 		return fmt.Errorf("TAR: %v", err.Error())
 	}
 
-	mw := io.MultiWriter(writers...)
-
-	gzw := pgzip.NewWriter(mw)
+	gzw := pgzip.NewWriter(w)
 	defer gzw.Close()
 
 	tw := tar.NewWriter(gzw)
