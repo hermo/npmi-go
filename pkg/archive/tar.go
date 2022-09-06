@@ -13,19 +13,121 @@ import (
 )
 
 // Create an archive file containing the contents of directory src
-func Create(filename string, src string) error {
+func Create(filename string, src string) (warnings []string, err error) {
 	f, err := os.Create(filename)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 
-	err = createTarGz(src, f)
-	if err != nil {
-		return err
+	if _, err := os.Stat(src); err != nil {
+		return nil, fmt.Errorf("TAR: %v", err.Error())
 	}
 
-	return nil
+	gzw := pgzip.NewWriter(f)
+	defer gzw.Close()
+
+	tw := tar.NewWriter(gzw)
+	defer tw.Close()
+
+	badPath := NewBadPath(true)
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	// walk path
+	err = filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
+		var link string
+
+		// return on any error
+		if err != nil {
+			return err
+		}
+
+		pathType := determinePathType(fi)
+		// Ignore unknown types
+		if pathType == TypeOther {
+			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", path))
+			return nil
+		}
+
+		if pathType == TypeLink {
+			link, err = os.Readlink(path)
+			if err != nil {
+				return err
+			}
+
+			pathDir := filepath.Dir(path)
+			linkFull := filepath.Join(wd, pathDir, link)
+
+			//			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", path, pathDir, link, linkFull)
+
+			if badPath.IsBad(link) {
+				return fmt.Errorf("invalid path: contains bad characters: %s", link)
+			}
+
+			if strings.Index(linkFull, wd) != 0 {
+				return fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", path, link)
+			}
+
+			_, err := os.Stat(linkFull)
+			if err != nil {
+				if os.IsNotExist(err) {
+					warnings = append(warnings, fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", path, link))
+					return nil
+
+				} else {
+					return err
+				}
+			}
+		}
+
+		// create a new dir/file header
+		header, err := tar.FileInfoHeader(fi, link)
+		if err != nil {
+			return err
+		}
+
+		// Use PAX format for utf-8 support
+		header.Format = tar.FormatPAX
+
+		if pathType == TypeLink {
+			header.Typeflag = tar.TypeSymlink
+			header.Linkname = link
+		}
+
+		header.Name = filepath.ToSlash(path)
+		header.Linkname = filepath.ToSlash(header.Linkname)
+
+		// write the header
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		// No further work required for directories
+		if pathType != TypeRegular {
+			return nil
+		}
+
+		// Add file to archive
+		f, err := os.Open(header.Name)
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(tw, f); err != nil {
+			return err
+		}
+
+		// manually close here after each file operation; defering would cause each file close
+		// to wait until all operations have completed.
+		f.Close()
+
+		return nil
+	})
+	return warnings, err
 }
 
 type badpath struct {
@@ -190,118 +292,6 @@ func Extract(reader io.Reader) ([]string, error) {
 
 	}
 	return manifest, nil
-}
-
-// createTarGz writes a given directory tree to a Gzipped TAR
-func createTarGz(src string, w io.Writer) error {
-
-	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("TAR: %v", err.Error())
-	}
-
-	gzw := pgzip.NewWriter(w)
-	defer gzw.Close()
-
-	tw := tar.NewWriter(gzw)
-	defer tw.Close()
-
-	badPath := NewBadPath(true)
-
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	// walk path
-	return filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
-		var link string
-
-		// return on any error
-		if err != nil {
-			return err
-		}
-
-		pathType := determinePathType(fi)
-		// Ignore unknown types
-		if pathType == TypeOther {
-			fmt.Printf("WARN: Ignoring unknown path: %q\n", path)
-			return nil
-		}
-
-		if pathType == TypeLink {
-			link, err = os.Readlink(path)
-			if err != nil {
-				return err
-			}
-
-			pathDir := filepath.Dir(path)
-			linkFull := filepath.Join(wd, pathDir, link)
-
-			//			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", path, pathDir, link, linkFull)
-
-			if badPath.IsBad(link) {
-				return fmt.Errorf("invalid path: contains bad characters: %s", link)
-			}
-
-			if strings.Index(linkFull, wd) != 0 {
-				return fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", path, link)
-			}
-
-			_, err := os.Stat(linkFull)
-			if err != nil {
-				if os.IsNotExist(err) {
-					fmt.Printf("WARN: Skipping non-existent symlink: %s -> %s\n", path, link)
-					return nil
-
-				} else {
-					return err
-				}
-			}
-		}
-
-		// create a new dir/file header
-		header, err := tar.FileInfoHeader(fi, link)
-		if err != nil {
-			return err
-		}
-
-		// Use PAX format for utf-8 support
-		header.Format = tar.FormatPAX
-
-		if pathType == TypeLink {
-			header.Typeflag = tar.TypeSymlink
-			header.Linkname = link
-		}
-
-		header.Name = filepath.ToSlash(path)
-		header.Linkname = filepath.ToSlash(header.Linkname)
-
-		// write the header
-		if err := tw.WriteHeader(header); err != nil {
-			return err
-		}
-
-		// No further work required for directories
-		if pathType != TypeRegular {
-			return nil
-		}
-
-		// Add file to archive
-		f, err := os.Open(header.Name)
-		if err != nil {
-			return err
-		}
-
-		if _, err := io.Copy(tw, f); err != nil {
-			return err
-		}
-
-		// manually close here after each file operation; defering would cause each file close
-		// to wait until all operations have completed.
-		f.Close()
-
-		return nil
-	})
 }
 
 type FileType int

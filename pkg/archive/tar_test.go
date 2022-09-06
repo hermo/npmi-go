@@ -243,27 +243,28 @@ func Test_ExtractFilesEvil(t *testing.T) {
 // Some tests for disallowing bad symlinks
 func Test_CreateArchiveSymlinks(t *testing.T) {
 	tests := []struct {
-		Source string
-		Target string
-		IsEvil bool
+		Source       string
+		Target       string
+		IsEvil       bool
+		WarningCount int
 	}{
 		// Normal cases
-		{"hello2.txt", "hello.txt", false},
-		{"hello_subdir_1.txt", "subdir/hello.txt", false},
-		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false},
-		{"subdir/hello_parent_1.txt", "../hello.txt", false},
+		{"hello2.txt", "hello.txt", false, 1},
+		{"hello_subdir_1.txt", "subdir/hello.txt", false, 1},
+		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false, 1},
+		{"subdir/hello_parent_1.txt", "../hello.txt", false, 1},
 		// Evil cases
-		{"subdir/evil_parent_0.txt", "../../hello.txt", true},
-		{"evil_parent_1.txt", "../evil.txt", true},
-		{"evil_parent_2.txt", "./../evil.txt", true},
-		{"evil_abs_1.txt", "/evil.txt", true},
-		{"evil_abs_2.txt", "/etc/passwd", true},
-		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true},
-		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true},
-		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true},
-		{"evil_win_dev_1.txt", "COM1>", true},
-		{"evil_win_dev_2.txt", "CON", true},
-		{"evil_win_dev_3.txt", "NUL", true},
+		{"subdir/evil_parent_0.txt", "../../hello.txt", true, 0},
+		{"evil_parent_1.txt", "../evil.txt", true, 0},
+		{"evil_parent_2.txt", "./../evil.txt", true, 0},
+		{"evil_abs_1.txt", "/evil.txt", true, 0},
+		{"evil_abs_2.txt", "/etc/passwd", true, 0},
+		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true, 0},
+		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true, 0},
+		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true, 0},
+		{"evil_win_dev_1.txt", "COM1>", true, 0},
+		{"evil_win_dev_2.txt", "CON", true, 0},
+		{"evil_win_dev_3.txt", "NUL", true, 0},
 	}
 
 	for _, tt := range tests {
@@ -293,7 +294,11 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 				t.Fatalf("Can't create test symlink: %v", err)
 			}
 
-			err = Create("temp.tgz", ".")
+			warnings, err := Create("temp.tgz", ".")
+
+			if len(warnings) != tt.WarningCount {
+				t.Errorf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
+			}
 
 			if tt.IsEvil {
 				if err == nil {
@@ -485,8 +490,13 @@ func BenchmarkCreate(b *testing.B) {
 	f.Close()
 
 	for i := 0; i < b.N; i++ {
-		if err = Create("compressed.tgz", "node_modules"); err != nil {
+		warnings, err := Create("compressed.tgz", "node_modules")
+		if err != nil {
 			b.Fatalf("Create failed: %v", err)
+		}
+
+		if len(warnings) > 100 {
+			b.Errorf("Warnings: %v", warnings)
 		}
 
 		if err = os.Remove("compressed.tgz"); err != nil {
