@@ -6,50 +6,71 @@ import (
 	"path/filepath"
 )
 
-type FileTreeType uint8
+const FileTreeCapacityReservation = 50e3
+
+type TreeType uint8
 
 const (
-	LeafTypeRegular FileTreeType = 1
-	LeafTypeLink    FileTreeType = 2
-	LeafTypeDir     FileTreeType = 3
-	LeafTypeOther   FileTreeType = 4
+	TypeRegular TreeType = 1
+	TypeLink    TreeType = 2
+	TypeDir     TreeType = 3
+	TypeOther   TreeType = 4
 )
 
-type FileTreeItem struct {
+type TreeItem struct {
 	Path     string
-	Type     FileTreeType
+	Type     TreeType
 	FileInfo *fs.FileInfo
 }
 
-type FileTree []FileTreeItem
-
-func determinePathType(fi os.FileInfo) FileTreeType {
-	if fi.Mode().IsRegular() {
-		return LeafTypeRegular
+func NewTree(path string, fi *fs.FileInfo) *TreeItem {
+	return &TreeItem{
+		Path:     path,
+		FileInfo: fi,
+		Type:     determinePathType(*fi),
 	}
-	if fi.Mode()&os.ModeSymlink != 0 {
-		return LeafTypeLink
-	}
-	if fi.IsDir() {
-		return LeafTypeDir
-	}
-	return LeafTypeOther
 }
 
-func CreateFileTree(src string) (*FileTree, error) {
-	// walk path
+func (fi *TreeItem) IsDir() bool {
+	return fi.Type == TypeDir
+}
 
-	tree := make(FileTree, 0, 50e3)
+func (fi *TreeItem) IsLink() bool {
+	return fi.Type == TypeLink
+}
+
+func (fi *TreeItem) IsRegular() bool {
+	return fi.Type == TypeRegular
+}
+
+func (fi *TreeItem) IsOther() bool {
+	return fi.Type == TypeOther
+}
+
+type Tree []TreeItem
+
+func determinePathType(fi os.FileInfo) TreeType {
+	if fi.Mode().IsRegular() {
+		return TypeRegular
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return TypeLink
+	}
+	if fi.IsDir() {
+		return TypeDir
+	}
+	return TypeOther
+}
+
+func CreateFileTree(src string) (*Tree, error) {
+	tree := make(Tree, 0, FileTreeCapacityReservation)
+
 	err := filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
-		// return on any error
 		if err != nil {
 			return err
 		}
-		tree = append(tree, FileTreeItem{
-			Path:     path,
-			Type:     determinePathType(fi),
-			FileInfo: &fi,
-		})
+
+		tree = append(tree, *NewTree(path, &fi))
 		return nil
 	})
 

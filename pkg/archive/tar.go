@@ -43,38 +43,38 @@ func Create(filename string, src string) (warnings []string, err error) {
 		return nil, err
 	}
 
-	for _, node := range *tree {
+	for _, item := range *tree {
 		var link string
 
 		// Ignore unknown types
-		if node.Type == files.LeafTypeOther {
-			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", node.Path))
+		if item.IsOther() {
+			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", item.Path))
 			continue
 		}
 
-		if node.Type == files.LeafTypeLink {
-			link, err = os.Readlink(node.Path)
+		if item.IsLink() {
+			link, err = os.Readlink(item.Path)
 			if err != nil {
 				return nil, err
 			}
 
-			pathDir := filepath.Dir(node.Path)
+			pathDir := filepath.Dir(item.Path)
 			linkFull := filepath.Join(wd, pathDir, link)
 
-			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", node.Path, pathDir, link, linkFull)
+			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", item.Path, pathDir, link, linkFull)
 
 			if badPath.IsBad(link) {
 				return nil, fmt.Errorf("invalid path: contains bad characters: %s", link)
 			}
 
 			if strings.Index(linkFull, wd) != 0 {
-				return nil, fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", node.Path, link)
+				return nil, fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", item.Path, link)
 			}
 
 			_, err := os.Stat(linkFull)
 			if err != nil {
 				if os.IsNotExist(err) {
-					warnings = append(warnings, fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", node.Path, link))
+					warnings = append(warnings, fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", item.Path, link))
 					continue
 
 				} else { // Fail on any other error
@@ -85,7 +85,7 @@ func Create(filename string, src string) (warnings []string, err error) {
 		}
 
 		// create a new dir/file header
-		header, err := tar.FileInfoHeader(*node.FileInfo, link)
+		header, err := tar.FileInfoHeader(*item.FileInfo, link)
 		if err != nil {
 			return nil, err
 		}
@@ -93,12 +93,12 @@ func Create(filename string, src string) (warnings []string, err error) {
 		// Use PAX format for utf-8 support
 		header.Format = tar.FormatPAX
 
-		if node.Type == files.LeafTypeLink {
+		if item.IsLink() {
 			header.Typeflag = tar.TypeSymlink
 			header.Linkname = link
 		}
 
-		header.Name = filepath.ToSlash(node.Path)
+		header.Name = filepath.ToSlash(item.Path)
 		header.Linkname = filepath.ToSlash(header.Linkname)
 
 		// write the header
@@ -107,7 +107,7 @@ func Create(filename string, src string) (warnings []string, err error) {
 		}
 
 		// No further work required for directories
-		if node.Type != files.LeafTypeRegular {
+		if !item.IsRegular() {
 			continue
 		}
 
