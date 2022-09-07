@@ -248,7 +248,7 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 		IsEvil       bool
 		WarningCount int
 	}{
-		// Normal cases
+		// Normal cases, nonexistent target cause warnings
 		{"hello2.txt", "hello.txt", false, 1},
 		{"hello_subdir_1.txt", "subdir/hello.txt", false, 1},
 		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false, 1},
@@ -297,7 +297,7 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 			warnings, err := Create("temp.tgz", ".")
 
 			if len(warnings) != tt.WarningCount {
-				t.Errorf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
+				t.Fatalf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
 			}
 
 			if tt.IsEvil {

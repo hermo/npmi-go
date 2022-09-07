@@ -1,6 +1,7 @@
 package files
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -10,25 +11,17 @@ type FileTreeType uint8
 const (
 	LeafTypeRegular FileTreeType = 1
 	LeafTypeLink    FileTreeType = 2
-	LeafTypeDir     FileTreeType = 2
-	LeafTypeOther   FileTreeType = 2
+	LeafTypeDir     FileTreeType = 3
+	LeafTypeOther   FileTreeType = 4
 )
 
 type FileTreeItem struct {
-	Path string
-	Type FileTreeType
+	Path     string
+	Type     FileTreeType
+	FileInfo *fs.FileInfo
 }
 
 type FileTree []FileTreeItem
-
-type FileType int
-
-const (
-	TypeRegular FileType = iota
-	TypeLink
-	TypeDir
-	TypeOther
-)
 
 func determinePathType(fi os.FileInfo) FileTreeType {
 	if fi.Mode().IsRegular() {
@@ -53,8 +46,9 @@ func CreateFileTree(src string) (*FileTree, error) {
 			return err
 		}
 		tree = append(tree, FileTreeItem{
-			Path: path,
-			Type: determinePathType(fi),
+			Path:     path,
+			Type:     determinePathType(fi),
+			FileInfo: &fi,
 		})
 		return nil
 	})

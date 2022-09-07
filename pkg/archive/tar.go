@@ -9,22 +9,28 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hermo/npmi-go/pkg/files"
 	"github.com/klauspost/pgzip"
 )
 
 // Create an archive file containing the contents of directory src
 func Create(filename string, src string) (warnings []string, err error) {
-	f, err := os.Create(filename)
+	tree, err := files.CreateFileTree(src)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+
+	archive, err := os.Create(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer archive.Close()
 
 	if _, err := os.Stat(src); err != nil {
 		return nil, fmt.Errorf("TAR: %v", err.Error())
 	}
 
-	gzw := pgzip.NewWriter(f)
+	gzw := pgzip.NewWriter(archive)
 	defer gzw.Close()
 
 	tw := tar.NewWriter(gzw)
@@ -37,96 +43,89 @@ func Create(filename string, src string) (warnings []string, err error) {
 		return nil, err
 	}
 
-	// walk path
-	err = filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
+	for _, node := range *tree {
 		var link string
 
-		// return on any error
-		if err != nil {
-			return err
-		}
-
-		pathType := determinePathType(fi)
 		// Ignore unknown types
-		if pathType == TypeOther {
-			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", path))
-			return nil
+		if node.Type == files.LeafTypeOther {
+			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", node.Path))
+			continue
 		}
 
-		if pathType == TypeLink {
-			link, err = os.Readlink(path)
+		if node.Type == files.LeafTypeLink {
+			link, err = os.Readlink(node.Path)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			pathDir := filepath.Dir(path)
+			pathDir := filepath.Dir(node.Path)
 			linkFull := filepath.Join(wd, pathDir, link)
 
-			//			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", path, pathDir, link, linkFull)
+			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", node.Path, pathDir, link, linkFull)
 
 			if badPath.IsBad(link) {
-				return fmt.Errorf("invalid path: contains bad characters: %s", link)
+				return nil, fmt.Errorf("invalid path: contains bad characters: %s", link)
 			}
 
 			if strings.Index(linkFull, wd) != 0 {
-				return fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", path, link)
+				return nil, fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", node.Path, link)
 			}
 
 			_, err := os.Stat(linkFull)
 			if err != nil {
 				if os.IsNotExist(err) {
-					warnings = append(warnings, fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", path, link))
-					return nil
+					warnings = append(warnings, fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", node.Path, link))
+					continue
 
-				} else {
-					return err
+				} else { // Fail on any other error
+					return nil, err
 				}
 			}
+			link = linkFull
 		}
 
 		// create a new dir/file header
-		header, err := tar.FileInfoHeader(fi, link)
+		header, err := tar.FileInfoHeader(*node.FileInfo, link)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// Use PAX format for utf-8 support
 		header.Format = tar.FormatPAX
 
-		if pathType == TypeLink {
+		if node.Type == files.LeafTypeLink {
 			header.Typeflag = tar.TypeSymlink
 			header.Linkname = link
 		}
 
-		header.Name = filepath.ToSlash(path)
+		header.Name = filepath.ToSlash(node.Path)
 		header.Linkname = filepath.ToSlash(header.Linkname)
 
 		// write the header
 		if err := tw.WriteHeader(header); err != nil {
-			return err
+			return nil, err
 		}
 
 		// No further work required for directories
-		if pathType != TypeRegular {
-			return nil
+		if node.Type != files.LeafTypeRegular {
+			continue
 		}
 
 		// Add file to archive
 		f, err := os.Open(header.Name)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if _, err := io.Copy(tw, f); err != nil {
-			return err
+			f.Close()
+			return nil, err
 		}
 
 		// manually close here after each file operation; defering would cause each file close
 		// to wait until all operations have completed.
 		f.Close()
-
-		return nil
-	})
+	}
 	return warnings, err
 }
 
@@ -292,28 +291,6 @@ func Extract(reader io.Reader) ([]string, error) {
 
 	}
 	return manifest, nil
-}
-
-type FileType int
-
-const (
-	TypeRegular FileType = iota
-	TypeLink
-	TypeDir
-	TypeOther
-)
-
-func determinePathType(fi os.FileInfo) FileType {
-	if fi.Mode().IsRegular() {
-		return TypeRegular
-	}
-	if fi.Mode()&os.ModeSymlink != 0 {
-		return TypeLink
-	}
-	if fi.IsDir() {
-		return TypeDir
-	}
-	return TypeOther
 }
 
 // syncSymlink makes sure that a symlink exists and is pointing to the right place

@@ -1,0 +1,1 @@
+../sub/dir/sub2.txt
