@@ -1,6 +1,7 @@
 package files
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -31,6 +32,22 @@ func NewTree(path string, fi *fs.FileInfo) *TreeItem {
 	}
 }
 
+func (tt TreeType) String() string {
+	switch tt {
+	case TypeRegular:
+		return "File"
+	case TypeDir:
+		return "Dir"
+	case TypeLink:
+		return "Link"
+	default:
+		return "Other"
+	}
+}
+
+func (fi TreeItem) String() string {
+	return fmt.Sprintf("%s(%s)", fi.Type, fi.Path)
+}
 func (fi *TreeItem) IsDir() bool {
 	return fi.Type == TypeDir
 }

@@ -2,8 +2,15 @@ package hash
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"runtime"
 	"testing"
+
+	"github.com/hermo/npmi-go/pkg/files"
 )
 
 func Test_HashFile(t *testing.T) {
@@ -53,4 +60,61 @@ func TestString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func getBaseDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("No caller information")
+	}
+	return path.Dir(filename)
+}
+
+func Test_HashTree(t *testing.T) {
+	testDir, err := filepath.Abs(fmt.Sprintf("%s/../../testdata", getBaseDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = os.Chdir(testDir); err != nil {
+		t.Fatal(err)
+	}
+
+	tree, err := files.CreateFileTree("tree")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hTree, err := HashTree(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedHashes := []struct {
+		Path    string
+		HashB64 string
+	}{
+		{"tree/root.txt", "jkx8G5nb/VDnqVGF/q1e4USPqQSi/dd46vXy2/1impk="},
+		{"tree/somedir/zero.txt", "rxNJufX5oaagQE3qNtzJSZvLJcmtwRK3zJqTyuQfMmI="},
+		{"tree/sub/dir/sub2.txt", "JlIdmkeUOB2zh+uAglLZ2EWwJdMpySITzkEnieFVXk0="},
+		{"tree/sub/dir/sub3.txt", "9nozQQ44lh7eD65MeAbYOuLgW11kAXqDDRTz3b9FS2I="},
+		{"tree/sub/sub1.txt", "AVdNrksWHo6jinkjSR2+dJOyHFCkektGsa9RjAixTqc="},
+	}
+
+	expectedFileCount := len(expectedHashes)
+	if len(*hTree) != expectedFileCount {
+		t.Fatalf("Expected %d files, got %d", expectedFileCount, len(*hTree))
+	}
+
+	for _, expected := range expectedHashes {
+		for _, item := range *hTree {
+			if item.Item.Path == expected.Path {
+				if item.Hash.String() != expected.HashB64 {
+					t.Fatalf("Expected has for %s to be %s, got %s", expected.Path, expected.HashB64, item.Hash)
+				}
+			}
+		}
+	}
+
 }
