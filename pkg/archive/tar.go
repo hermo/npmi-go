@@ -44,8 +44,6 @@ func Create(filename string, src string) (warnings []string, err error) {
 	}
 
 	for _, item := range *tree {
-		var link string
-
 		// Ignore unknown types
 		if item.IsOther() {
 			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", item.Path))
@@ -53,7 +51,7 @@ func Create(filename string, src string) (warnings []string, err error) {
 		}
 
 		if item.IsLink() {
-			warning, err := writeLink(&item, wd, badPath)
+			warning, err := writeLink(&item, wd, badPath, tw)
 			if err != nil {
 				return nil, err
 			}
@@ -62,52 +60,24 @@ func Create(filename string, src string) (warnings []string, err error) {
 			}
 		}
 
-		// create a new dir/file header
-		header, err := tar.FileInfoHeader(*item.FileInfo, link)
-		if err != nil {
-			return nil, err
+		if item.IsRegular() {
+			err := writeRegular(&item, tw)
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		// Use PAX format for utf-8 support
-		header.Format = tar.FormatPAX
-
-		if item.IsLink() {
-			header.Typeflag = tar.TypeSymlink
-			header.Linkname = link
+		if item.IsDir() {
+			err := writeDir(&item, tw)
+			if err != nil {
+				return nil, err
+			}
 		}
-
-		header.Name = filepath.ToSlash(item.Path)
-		header.Linkname = filepath.ToSlash(header.Linkname)
-
-		// write the header
-		if err := tw.WriteHeader(header); err != nil {
-			return nil, err
-		}
-
-		// No further work required for directories
-		if !item.IsRegular() {
-			continue
-		}
-
-		// Add file to archive
-		f, err := os.Open(header.Name)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err := io.Copy(tw, f); err != nil {
-			f.Close()
-			return nil, err
-		}
-
-		// manually close here after each file operation; defering would cause each file close
-		// to wait until all operations have completed.
-		f.Close()
 	}
 	return warnings, err
 }
 
-func writeLink(item *files.TreeItem, wd string, badPath *badpath) (warning string, err error) {
+func writeLink(item *files.TreeItem, wd string, badPath *badpath, tw *tar.Writer) (warning string, err error) {
 	link, err := os.Readlink(item.Path)
 	if err != nil {
 		return
@@ -134,7 +104,76 @@ func writeLink(item *files.TreeItem, wd string, badPath *badpath) (warning strin
 			err = nil
 		}
 	}
+
+	// create a new dir/file header
+	header, err := tar.FileInfoHeader(*item.FileInfo, link)
+	if err != nil {
+		return
+	}
+
+	// Use PAX format for utf-8 support
+	header.Format = tar.FormatPAX
+
+	header.Typeflag = tar.TypeSymlink
+	header.Linkname = link
+
+	header.Name = filepath.ToSlash(item.Path)
+	header.Linkname = filepath.ToSlash(header.Linkname)
+
+	// write the header
+	if err = tw.WriteHeader(header); err != nil {
+		return
+	}
 	return
+}
+
+func writeDir(item *files.TreeItem, tw *tar.Writer) error {
+	// create a new dir/file header
+	header, err := tar.FileInfoHeader(*item.FileInfo, item.Path)
+	if err != nil {
+		return err
+	}
+
+	// Use PAX format for utf-8 support
+	header.Format = tar.FormatPAX
+	header.Name = filepath.ToSlash(item.Path)
+	header.Linkname = filepath.ToSlash(header.Linkname)
+
+	// write the header
+	if err = tw.WriteHeader(header); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writeRegular(item *files.TreeItem, tw *tar.Writer) error {
+	// create a new dir/file header
+	header, err := tar.FileInfoHeader(*item.FileInfo, item.Path)
+	if err != nil {
+		return err
+	}
+
+	// Use PAX format for utf-8 support
+	header.Format = tar.FormatPAX
+	header.Name = filepath.ToSlash(item.Path)
+	header.Linkname = filepath.ToSlash(header.Linkname)
+
+	// write the header
+	if err = tw.WriteHeader(header); err != nil {
+		return err
+	}
+
+	f, err := os.Open(header.Name)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(tw, f); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type badpath struct {
