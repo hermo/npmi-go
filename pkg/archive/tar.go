@@ -27,7 +27,7 @@ func Create(filename string, src string) (warnings []string, err error) {
 	defer archive.Close()
 
 	if _, err := os.Stat(src); err != nil {
-		return nil, fmt.Errorf("TAR: %v", err.Error())
+		return nil, err
 	}
 
 	gzw := pgzip.NewWriter(archive)
@@ -36,21 +36,16 @@ func Create(filename string, src string) (warnings []string, err error) {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
-	badPath := NewBadPath(true)
-
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
 
-	for _, item := range *tree {
-		// Ignore unknown types
-		if item.IsOther() {
-			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", item.Path))
-			continue
-		}
+	badPath := NewBadPath(true)
 
-		if item.IsLink() {
+	for _, item := range *tree {
+		switch item.Type {
+		case files.TypeLink:
 			warning, err := writeLink(&item, wd, badPath, tw)
 			if err != nil {
 				return nil, err
@@ -58,20 +53,20 @@ func Create(filename string, src string) (warnings []string, err error) {
 			if warning != "" {
 				warnings = append(warnings, warning)
 			}
-		}
 
-		if item.IsRegular() {
-			err := writeRegular(&item, tw)
-			if err != nil {
+		case files.TypeRegular:
+			if err := writeRegular(&item, tw); err != nil {
 				return nil, err
 			}
-		}
 
-		if item.IsDir() {
-			err := writeDir(&item, tw)
-			if err != nil {
+		case files.TypeDir:
+			if err := writeDir(&item, tw); err != nil {
 				return nil, err
 			}
+		case files.TypeOther:
+			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", item.Path))
+		default:
+			return nil, fmt.Errorf("unhandled file type! %d", item.Type)
 		}
 	}
 	return warnings, err
