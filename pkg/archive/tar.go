@@ -105,65 +105,22 @@ func writeLink(item *files.TreeItem, wd string, badPath *badpath, tw *tar.Writer
 		}
 	}
 
-	// create a new dir/file header
-	header, err := tar.FileInfoHeader(*item.FileInfo, link)
-	if err != nil {
-		return
-	}
-
-	// Use PAX format for utf-8 support
-	header.Format = tar.FormatPAX
-
-	header.Typeflag = tar.TypeSymlink
-	header.Linkname = link
-
-	header.Name = filepath.ToSlash(item.Path)
-	header.Linkname = filepath.ToSlash(header.Linkname)
-
-	// write the header
-	if err = tw.WriteHeader(header); err != nil {
+	if err = writeHeader(item, tw, &link); err != nil {
 		return
 	}
 	return
 }
 
 func writeDir(item *files.TreeItem, tw *tar.Writer) error {
-	// create a new dir/file header
-	header, err := tar.FileInfoHeader(*item.FileInfo, item.Path)
-	if err != nil {
-		return err
-	}
-
-	// Use PAX format for utf-8 support
-	header.Format = tar.FormatPAX
-	header.Name = filepath.ToSlash(item.Path)
-	header.Linkname = filepath.ToSlash(header.Linkname)
-
-	// write the header
-	if err = tw.WriteHeader(header); err != nil {
-		return err
-	}
-	return nil
+	return writeHeader(item, tw, nil)
 }
 
 func writeRegular(item *files.TreeItem, tw *tar.Writer) error {
-	// create a new dir/file header
-	header, err := tar.FileInfoHeader(*item.FileInfo, item.Path)
-	if err != nil {
+	if err := writeHeader(item, tw, nil); err != nil {
 		return err
 	}
 
-	// Use PAX format for utf-8 support
-	header.Format = tar.FormatPAX
-	header.Name = filepath.ToSlash(item.Path)
-	header.Linkname = filepath.ToSlash(header.Linkname)
-
-	// write the header
-	if err = tw.WriteHeader(header); err != nil {
-		return err
-	}
-
-	f, err := os.Open(header.Name)
+	f, err := os.Open(item.Path)
 	if err != nil {
 		return err
 	}
@@ -174,6 +131,33 @@ func writeRegular(item *files.TreeItem, tw *tar.Writer) error {
 	}
 
 	return nil
+}
+
+func writeHeader(item *files.TreeItem, tw *tar.Writer, linkname *string) error {
+	// create a new dir/file header
+	header, err := tar.FileInfoHeader(*item.FileInfo, item.Path)
+	if err != nil {
+		return err
+	}
+
+	// Use PAX format for utf-8 support
+	header.Format = tar.FormatPAX
+
+	// Symlink special sauce
+	if item.IsLink() {
+		header.Typeflag = tar.TypeSymlink
+		header.Linkname = *linkname
+	}
+
+	header.Name = filepath.ToSlash(item.Path)
+	header.Linkname = filepath.ToSlash(header.Linkname)
+
+	// write the header
+	if err = tw.WriteHeader(header); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 type badpath struct {
