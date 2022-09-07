@@ -53,35 +53,13 @@ func Create(filename string, src string) (warnings []string, err error) {
 		}
 
 		if item.IsLink() {
-			link, err = os.Readlink(item.Path)
+			warning, err := writeLink(&item, wd, badPath)
 			if err != nil {
 				return nil, err
 			}
-
-			pathDir := filepath.Dir(item.Path)
-			linkFull := filepath.Join(wd, pathDir, link)
-
-			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", item.Path, pathDir, link, linkFull)
-
-			if badPath.IsBad(link) {
-				return nil, fmt.Errorf("invalid path: contains bad characters: %s", link)
+			if warning != "" {
+				warnings = append(warnings, warning)
 			}
-
-			if strings.Index(linkFull, wd) != 0 {
-				return nil, fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", item.Path, link)
-			}
-
-			_, err := os.Stat(linkFull)
-			if err != nil {
-				if os.IsNotExist(err) {
-					warnings = append(warnings, fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", item.Path, link))
-					continue
-
-				} else { // Fail on any other error
-					return nil, err
-				}
-			}
-			link = linkFull
 		}
 
 		// create a new dir/file header
@@ -127,6 +105,36 @@ func Create(filename string, src string) (warnings []string, err error) {
 		f.Close()
 	}
 	return warnings, err
+}
+
+func writeLink(item *files.TreeItem, wd string, badPath *badpath) (warning string, err error) {
+	link, err := os.Readlink(item.Path)
+	if err != nil {
+		return
+	}
+
+	pathDir := filepath.Dir(item.Path)
+	linkFull := filepath.Join(wd, pathDir, link)
+
+	if badPath.IsBad(link) {
+		err = fmt.Errorf("invalid path: contains bad characters: %s", link)
+		return
+	}
+
+	if strings.Index(linkFull, wd) != 0 {
+		err = fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", item.Path, link)
+		return
+	}
+
+	_, err = os.Stat(linkFull)
+	if err != nil {
+		// Handle non-existent file error
+		if os.IsNotExist(err) {
+			warning = fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", item.Path, link)
+			err = nil
+		}
+	}
+	return
 }
 
 type badpath struct {
