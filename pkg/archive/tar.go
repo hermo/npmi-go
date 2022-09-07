@@ -36,82 +36,95 @@ func Create(filename string, src string) (warnings []string, err error) {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
+	aw, err := newArchiveWriter(tw)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range *tree {
+		switch item.Type {
+		case files.TypeLink:
+			if err := aw.writeLink(&item); err != nil {
+				return nil, err
+			}
+
+		case files.TypeRegular:
+			if err := aw.writeRegular(&item); err != nil {
+				return nil, err
+			}
+
+		case files.TypeDir:
+			if err := aw.writeDir(&item); err != nil {
+				return nil, err
+			}
+		case files.TypeOther:
+			aw.warnings = append(aw.warnings, fmt.Sprintf("Ignored unknown path: %q\n", item.Path))
+		default:
+			return nil, fmt.Errorf("unhandled file type! %d", item.Type)
+		}
+	}
+	return aw.warnings, err
+}
+
+type archiveWriter struct {
+	tw         *tar.Writer
+	warnings   []string
+	workingDir string
+	badPath    badpath
+}
+
+func newArchiveWriter(tw *tar.Writer) (*archiveWriter, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
 
-	badPath := NewBadPath(true)
-
-	for _, item := range *tree {
-		switch item.Type {
-		case files.TypeLink:
-			warning, err := writeLink(&item, wd, badPath, tw)
-			if err != nil {
-				return nil, err
-			}
-			if warning != "" {
-				warnings = append(warnings, warning)
-			}
-
-		case files.TypeRegular:
-			if err := writeRegular(&item, tw); err != nil {
-				return nil, err
-			}
-
-		case files.TypeDir:
-			if err := writeDir(&item, tw); err != nil {
-				return nil, err
-			}
-		case files.TypeOther:
-			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", item.Path))
-		default:
-			return nil, fmt.Errorf("unhandled file type! %d", item.Type)
-		}
-	}
-	return warnings, err
+	return &archiveWriter{
+		tw:         tw,
+		badPath:    *NewBadPath(true),
+		workingDir: wd,
+	}, nil
 }
 
-func writeLink(item *files.TreeItem, wd string, badPath *badpath, tw *tar.Writer) (warning string, err error) {
+func (aw *archiveWriter) writeLink(item *files.TreeItem) error {
 	link, err := os.Readlink(item.Path)
 	if err != nil {
-		return
+		return err
 	}
 
 	pathDir := filepath.Dir(item.Path)
-	linkFull := filepath.Join(wd, pathDir, link)
+	linkFull := filepath.Join(aw.workingDir, pathDir, link)
 
-	if badPath.IsBad(link) {
-		err = fmt.Errorf("invalid path: contains bad characters: %s", link)
-		return
+	if aw.badPath.IsBad(link) {
+		return fmt.Errorf("invalid path: contains bad characters: %s", link)
 	}
 
-	if strings.Index(linkFull, wd) != 0 {
-		err = fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", item.Path, link)
-		return
+	if strings.Index(linkFull, aw.workingDir) != 0 {
+		return fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", item.Path, link)
 	}
 
 	_, err = os.Stat(linkFull)
 	if err != nil {
 		// Handle non-existent file error
 		if os.IsNotExist(err) {
-			warning = fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", item.Path, link)
-			err = nil
+			aw.warnings = append(aw.warnings, fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", item.Path, link))
+		} else {
+			return err
 		}
 	}
 
-	if err = writeHeader(item, tw, &link); err != nil {
-		return
+	if err = aw.writeHeader(item, &link); err != nil {
+		return err
 	}
-	return
+	return nil
 }
 
-func writeDir(item *files.TreeItem, tw *tar.Writer) error {
-	return writeHeader(item, tw, nil)
+func (aw *archiveWriter) writeDir(item *files.TreeItem) error {
+	return aw.writeHeader(item, nil)
 }
 
-func writeRegular(item *files.TreeItem, tw *tar.Writer) error {
-	if err := writeHeader(item, tw, nil); err != nil {
+func (aw *archiveWriter) writeRegular(item *files.TreeItem) error {
+	if err := aw.writeHeader(item, nil); err != nil {
 		return err
 	}
 
@@ -121,14 +134,14 @@ func writeRegular(item *files.TreeItem, tw *tar.Writer) error {
 	}
 	defer f.Close()
 
-	if _, err := io.Copy(tw, f); err != nil {
+	if _, err := io.Copy(aw.tw, f); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeHeader(item *files.TreeItem, tw *tar.Writer, linkname *string) error {
+func (aw *archiveWriter) writeHeader(item *files.TreeItem, linkname *string) error {
 	// create a new dir/file header
 	header, err := tar.FileInfoHeader(*item.FileInfo, item.Path)
 	if err != nil {
@@ -148,11 +161,10 @@ func writeHeader(item *files.TreeItem, tw *tar.Writer, linkname *string) error {
 	header.Linkname = filepath.ToSlash(header.Linkname)
 
 	// write the header
-	if err = tw.WriteHeader(header); err != nil {
+	if err = aw.tw.WriteHeader(header); err != nil {
 		return err
 	}
 	return nil
-
 }
 
 type badpath struct {
