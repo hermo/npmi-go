@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ $# -lt 3 ]; then
+  echo "Usage: run <PACKAGE> <BENCH-FILTER> <DESCRIPTION>"
+  echo "PACKAGE is something like ../../pkg/archive"
+  echo "BENCH-FILTER is something like . (to run every benchmark) or 'Extract' to only run the Extraction test"
+  exit 1
+fi
+
+pkg="$1"
+filter="$2"
+descr="${*:3}"
+
+if [ -f bench.last ]; then
+  n=$(( $(cat bench.last) + 1 ))
+else
+  n=0
+fi
+
+runid="$(printf '%02d' $n)"
+printf "%s run-%s %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$runid" "$descr" >> bench.log
+go test "$pkg" -bench="$filter" -run=xxx -benchmem -memprofile ${runid}_mem.prof -cpuprofile ${runid}_cpu.prof -benchtime=10s | tee $runid.log
+printf "Run %s complete\n" "$runid"
+
+# Increment run counter only after everything else is done
+echo "$runid" > bench.last

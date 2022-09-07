@@ -2,187 +2,43 @@ package archive
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/klauspost/pgzip"
 )
 
 // Create an archive file containing the contents of directory src
-func Create(filename string, src string) error {
+func Create(filename string, src string) (warnings []string, err error) {
 	f, err := os.Create(filename)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 
-	err = createTarGz(src, f)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Extract all files from an archive to current directory
-func Extract(reader io.Reader) ([]string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	var manifest []string
-	gzr, err := gzip.NewReader(reader)
-	if err != nil {
-		return nil, err
-	}
-	defer gzr.Close()
-
-	tr := tar.NewReader(gzr)
-
-	// Match known evil characters
-	// Windows bad chars and devices from https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
-	badChars, err := regexp.Compile("(<|>|:|\"|\\||\\?|\\*|\\.\\.|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
-
-	if err != nil {
-		return nil, fmt.Errorf("could not compile regexp: %v", err)
-	}
-
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		// if the header is nil, just skip it (not sure how this happens)
-		if header == nil {
-			fmt.Println("Nil header?")
-			continue
-		}
-
-		// the target location where the dir/file should be created
-		target := header.Name
-		target = filepath.ToSlash(filepath.Clean(target))
-
-		if badChars.MatchString(target) {
-			return nil, fmt.Errorf("invalid path: contains bad characters")
-		}
-
-		// check the file type
-		switch header.Typeflag {
-
-		// if its a dir and it doesn't exist create it
-		case tar.TypeDir:
-			if _, err := os.Stat(target); err != nil {
-				if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
-					return nil, err
-				}
-			}
-
-			// Defer setting directory mtimes as they are bound to change when files are written to them
-			defer func() {
-				if err := os.Chtimes(target, time.Now(), header.FileInfo().ModTime()); err != nil {
-					fmt.Fprintf(os.Stderr, "Error: Could not restore mtime for directory %s: %v", target, err)
-				}
-			}()
-
-		// if it's a file create it
-		case tar.TypeReg:
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
-			if err != nil {
-				return nil, err
-			}
-
-			// copy over contents
-			if _, err := io.Copy(f, tr); err != nil {
-				return nil, err
-			}
-
-			// manually close here after each file operation; defering would cause each file close
-			// to wait until all operations have completed.
-			f.Close()
-			err = os.Chtimes(target, time.Now(), header.FileInfo().ModTime())
-			if err != nil {
-				return nil, err
-			}
-
-			err = os.Chmod(target, header.FileInfo().Mode())
-			if err != nil {
-				return nil, err
-			}
-
-			manifest = append(manifest, target)
-
-		case tar.TypeSymlink:
-			reldest := filepath.ToSlash(header.Name)
-			dest := filepath.Join(cwd, filepath.ToSlash(header.Name))
-			source := filepath.ToSlash(header.Linkname)
-
-			if source[0] == '/' {
-				return nil, fmt.Errorf("invalid path: symlink with absolute path: %s -> %s", dest, source)
-			}
-
-			dir := filepath.Dir(dest)
-			resolvedTarget := filepath.Join(dir, source)
-
-			if !strings.HasPrefix(resolvedTarget, cwd) {
-				return nil, fmt.Errorf("invalid path: %s -> %s points outside cwd", reldest, source)
-			}
-
-			err = syncSymLink(source, dest)
-			if err != nil {
-				return nil, fmt.Errorf("syncing symlink failed: %v", err)
-			}
-
-			// symlink timestamps are not preserved
-			// see https://stackoverflow.com/questions/54762079/how-to-change-timestamp-for-symbol-link-using-golang
-			manifest = append(manifest, target)
-
-		default:
-			return nil, fmt.Errorf("unsupported file type: %+v", header)
-		}
-
-	}
-	return manifest, nil
-}
-
-// createTarGz writes a given directory tree to a Gzipped TAR
-func createTarGz(src string, writers ...io.Writer) error {
-
 	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("TAR: %v", err.Error())
+		return nil, fmt.Errorf("TAR: %v", err.Error())
 	}
 
-	mw := io.MultiWriter(writers...)
-
-	gzw := gzip.NewWriter(mw)
+	gzw := pgzip.NewWriter(f)
 	defer gzw.Close()
 
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
-	// Match known evil characters
-	badChars, err := regexp.Compile("(<|>|:|\"|\\||\\?|\\*|^/|^CON|^PRN|^AUX|^NUL|^COM1|^COM2|^COM3|^COM4|^COM5|^COM6|^COM7|^COM8|^COM9|^LPT1|^LPT2|^LPT3|^LPT4|^LPT5|^LPT6|^LPT7|^LPT8|^LPT9)")
-
-	if err != nil {
-		return fmt.Errorf("could not compile regexp: %v", err)
-	}
+	badPath := NewBadPath(true)
 
 	wd, err := os.Getwd()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// walk path
-	return filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
+	err = filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
 		var link string
 
 		// return on any error
@@ -193,7 +49,7 @@ func createTarGz(src string, writers ...io.Writer) error {
 		pathType := determinePathType(fi)
 		// Ignore unknown types
 		if pathType == TypeOther {
-			fmt.Printf("WARN: Ignoring unknown path: %q\n", path)
+			warnings = append(warnings, fmt.Sprintf("Ignored unknown path: %q\n", path))
 			return nil
 		}
 
@@ -208,7 +64,7 @@ func createTarGz(src string, writers ...io.Writer) error {
 
 			//			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", path, pathDir, link, linkFull)
 
-			if badChars.MatchString(link) {
+			if badPath.IsBad(link) {
 				return fmt.Errorf("invalid path: contains bad characters: %s", link)
 			}
 
@@ -219,7 +75,7 @@ func createTarGz(src string, writers ...io.Writer) error {
 			_, err := os.Stat(linkFull)
 			if err != nil {
 				if os.IsNotExist(err) {
-					fmt.Printf("WARN: Skipping non-existent symlink: %s -> %s\n", path, link)
+					warnings = append(warnings, fmt.Sprintf("Skipped non-existent symlink: %s -> %s\n", path, link))
 					return nil
 
 				} else {
@@ -271,6 +127,171 @@ func createTarGz(src string, writers ...io.Writer) error {
 
 		return nil
 	})
+	return warnings, err
+}
+
+type badpath struct {
+	allowDoubleDot bool
+}
+
+func NewBadPath(allowDoubleDot bool) *badpath {
+	return &badpath{allowDoubleDot}
+}
+
+func (bp *badpath) IsBad(path string) bool {
+	if strings.ContainsAny(path, "<|>:\"*?\\") {
+		return true
+	}
+
+	if !bp.allowDoubleDot {
+		if strings.Contains(path, "..") {
+			return true
+		}
+	}
+
+	if path[0] == '/' {
+		return true
+	}
+
+	if strings.HasPrefix(path, " ") {
+		return true
+	}
+
+	path = strings.ToUpper(path)
+	windowsDevices := []string{"CON", "PRN", "AUX", "NUL"}
+	for _, s := range windowsDevices {
+		if path == s {
+			return true
+		}
+	}
+
+	windowsDevicePrefixes := []string{"COM", "LPT"}
+	for _, s := range windowsDevicePrefixes {
+		if strings.HasPrefix(path, s) && len(path) > 3 {
+			if path[3] >= '1' && path[3] <= '9' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Extract all files from an archive to current directory
+func Extract(reader io.Reader) ([]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	var manifest []string
+	gzr, err := pgzip.NewReaderN(reader, 500e3, 50)
+	if err != nil {
+		return nil, err
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+
+	badPath := NewBadPath(false)
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		// if the header is nil, just skip it (not sure how this happens)
+		if header == nil {
+			fmt.Println("Nil header?")
+			continue
+		}
+
+		// the target location where the dir/file should be created
+		target := header.Name
+		target = filepath.ToSlash(filepath.Clean(target))
+
+		if badPath.IsBad(target) {
+			return nil, fmt.Errorf("invalid path: contains bad characters")
+		}
+
+		// check the file type
+		switch header.Typeflag {
+
+		// if its a dir and it doesn't exist create it
+		case tar.TypeDir:
+			if _, err := os.Stat(target); err != nil {
+				if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
+					return nil, err
+				}
+			}
+
+			// Defer setting directory mtimes as they are bound to change when files are written to them
+			defer func() {
+				if err := os.Chtimes(target, time.Now(), header.FileInfo().ModTime()); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: Could not restore mtime for directory %s: %v", target, err)
+				}
+			}()
+
+		// if it's a file create it
+		case tar.TypeReg:
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			if err != nil {
+				return nil, err
+			}
+
+			// copy over contents
+			if _, err := io.Copy(f, tr); err != nil {
+				f.Close()
+				return nil, err
+			}
+
+			// manually close here after each file operation; defering would cause each file close
+			// to wait until all operations have completed.
+			f.Close()
+			if err = os.Chtimes(target, time.Now(), header.FileInfo().ModTime()); err != nil {
+				return nil, err
+			}
+
+			if err = os.Chmod(target, header.FileInfo().Mode()); err != nil {
+				return nil, err
+			}
+
+			manifest = append(manifest, target)
+
+		case tar.TypeSymlink:
+			reldest := filepath.ToSlash(header.Name)
+			dest := filepath.Join(cwd, filepath.ToSlash(header.Name))
+			source := filepath.ToSlash(header.Linkname)
+
+			if source[0] == '/' {
+				return nil, fmt.Errorf("invalid path: symlink with absolute path: %s -> %s", dest, source)
+			}
+
+			dir := filepath.Dir(dest)
+			resolvedTarget := filepath.Join(dir, source)
+
+			if !strings.HasPrefix(resolvedTarget, cwd) {
+				return nil, fmt.Errorf("invalid path: %s -> %s points outside cwd", reldest, source)
+			}
+
+			err = syncSymLink(source, dest)
+			if err != nil {
+				return nil, fmt.Errorf("syncing symlink failed: %v", err)
+			}
+
+			// symlink timestamps are not preserved
+			// see https://stackoverflow.com/questions/54762079/how-to-change-timestamp-for-symbol-link-using-golang
+			manifest = append(manifest, target)
+
+		default:
+			return nil, fmt.Errorf("unsupported file type: %+v", header)
+		}
+
+	}
+	return manifest, nil
 }
 
 type FileType int

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -242,27 +243,28 @@ func Test_ExtractFilesEvil(t *testing.T) {
 // Some tests for disallowing bad symlinks
 func Test_CreateArchiveSymlinks(t *testing.T) {
 	tests := []struct {
-		Source string
-		Target string
-		IsEvil bool
+		Source       string
+		Target       string
+		IsEvil       bool
+		WarningCount int
 	}{
 		// Normal cases
-		{"hello2.txt", "hello.txt", false},
-		{"hello_subdir_1.txt", "subdir/hello.txt", false},
-		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false},
-		{"subdir/hello_parent_1.txt", "../hello.txt", false},
+		{"hello2.txt", "hello.txt", false, 1},
+		{"hello_subdir_1.txt", "subdir/hello.txt", false, 1},
+		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false, 1},
+		{"subdir/hello_parent_1.txt", "../hello.txt", false, 1},
 		// Evil cases
-		{"subdir/evil_parent_0.txt", "../../hello.txt", true},
-		{"evil_parent_1.txt", "../evil.txt", true},
-		{"evil_parent_2.txt", "./../evil.txt", true},
-		{"evil_abs_1.txt", "/evil.txt", true},
-		{"evil_abs_2.txt", "/etc/passwd", true},
-		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true},
-		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true},
-		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true},
-		{"evil_win_dev_1.txt", "COM1>", true},
-		{"evil_win_dev_2.txt", "CON", true},
-		{"evil_win_dev_3.txt", "NUL", true},
+		{"subdir/evil_parent_0.txt", "../../hello.txt", true, 0},
+		{"evil_parent_1.txt", "../evil.txt", true, 0},
+		{"evil_parent_2.txt", "./../evil.txt", true, 0},
+		{"evil_abs_1.txt", "/evil.txt", true, 0},
+		{"evil_abs_2.txt", "/etc/passwd", true, 0},
+		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true, 0},
+		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true, 0},
+		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true, 0},
+		{"evil_win_dev_1.txt", "COM1>", true, 0},
+		{"evil_win_dev_2.txt", "CON", true, 0},
+		{"evil_win_dev_3.txt", "NUL", true, 0},
 	}
 
 	for _, tt := range tests {
@@ -292,7 +294,11 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 				t.Fatalf("Can't create test symlink: %v", err)
 			}
 
-			err = Create("temp.tgz", ".")
+			warnings, err := Create("temp.tgz", ".")
+
+			if len(warnings) != tt.WarningCount {
+				t.Errorf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
+			}
 
 			if tt.IsEvil {
 				if err == nil {
@@ -343,5 +349,158 @@ func removeTestDir(testDir string) {
 	err = os.RemoveAll(testDir)
 	if err != nil {
 		fmt.Printf("ERROR: could not remove temp directory: %v", err)
+	}
+}
+
+func BenchmarkExtract(b *testing.B) {
+	testDir, err := prepareTestDir()
+	if err != nil {
+		b.Fatalf("Can't create temporary test directory: %v", err)
+	}
+
+	defer removeTestDir(testDir)
+
+	err = os.Mkdir("extract", 0700)
+	if err != nil {
+		b.Fatalf("Could not create directory: %v", err)
+	}
+
+	err = os.Chdir("extract")
+	if err != nil {
+		b.Fatalf("Can't chdir to test directory: %v", err)
+	}
+	testArchive, err := filepath.Abs(fmt.Sprintf("%s/../../bench/extract/test.tgz", getBaseDir()))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	f, err := os.Open(testArchive)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer f.Close()
+
+	for i := 0; i < b.N; i++ {
+		f.Seek(0, io.SeekStart)
+
+		_, err := Extract(f)
+		if err != nil {
+			b.Fatalf("Extract failed: %v", err)
+		}
+	}
+}
+
+func TestBadPath(t *testing.T) {
+	tests := []struct {
+		allowDoubleDot bool
+		Path           string
+		Expected       bool
+	}{
+		// Evil inputs, double dots not allowed
+		{false, "/evil1.txt", true},
+		{false, "evil11..txt", true},
+		{false, "../evil2.txt", true},
+		{false, "C:/Users/Public/evil3.txt", true},
+		{false, "C:|Users/Public/evil4.txt", true},
+		{false, "<", true},
+		{false, "<foo", true},
+		{false, " <foo2", true},
+		{false, "bar>", true},
+		{false, "COM1>", true},
+		{false, "com3", true},
+		{false, "LpT7", true},
+		{false, "LPT3", true},
+		{false, "COM9", true},
+		{false, "win\\separator", true},
+		{false, "CON", true},
+		{false, "NUL", true},
+		{false, " Spaceman", true},
+		{false, "C:\\Users\\Public\\evil5.txt", true},
+
+		// Evil inputs, double dots allowed
+		{true, "/../evil_double_dots_6.txt", true},
+		{true, "/../evil_double_dots_61..txt", true},
+
+		// Good inputs, double dots disallowed
+		{false, "kissa7.txt", false},
+		{false, "foo/bar//double_dots71.txt", false},
+		{false, "COM0", false},
+		{false, "COM", false},
+		{false, "Hello dolly", false},
+
+		// Good inputs, double dots allowed
+		{true, "../double_dots8.txt", false},
+		{true, "double_dots9..txt", false},
+		{true, "LPT0", false},
+		{true, "LPT", false},
+		{true, "COMA", false},
+		{true, "CONAIR", false},
+		{true, "NULL", false},
+		{true, "Program Files/my app.exe", false},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("allowDoubleDots:%v,Path:%s", tt.allowDoubleDot, tt.Path), func(t *testing.T) {
+			bp := NewBadPath(tt.allowDoubleDot)
+			if bp.IsBad(tt.Path) != tt.Expected {
+				t.Errorf("IsBad(%s) did not return %v", tt.Path, tt.Expected)
+			}
+		})
+	}
+}
+
+func BenchmarkBadPath(b *testing.B) {
+	bp := NewBadPath(false)
+	path := "node_modules/foo_bar/baz.js/somepath"
+	for i := 0; i < b.N; i++ {
+		bp.IsBad(path)
+	}
+}
+
+func BenchmarkCreate(b *testing.B) {
+	testDir, err := prepareTestDir()
+	if err != nil {
+		b.Fatalf("Can't create temporary test directory: %v", err)
+	}
+
+	defer removeTestDir(testDir)
+
+	err = os.Mkdir("compress", 0700)
+	if err != nil {
+		b.Fatalf("Could not create directory: %v", err)
+	}
+
+	err = os.Chdir("compress")
+	if err != nil {
+		b.Fatalf("Can't chdir to test directory: %v", err)
+	}
+	testArchive, err := filepath.Abs(fmt.Sprintf("%s/../../bench/extract/test.tgz", getBaseDir()))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	f, err := os.Open(testArchive)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	_, err = Extract(f)
+	if err != nil {
+		b.Fatalf("Extract failed: %v", err)
+	}
+	f.Close()
+
+	for i := 0; i < b.N; i++ {
+		warnings, err := Create("compressed.tgz", "node_modules")
+		if err != nil {
+			b.Fatalf("Create failed: %v", err)
+		}
+
+		if len(warnings) > 100 {
+			b.Errorf("Warnings: %v", warnings)
+		}
+
+		if err = os.Remove("compressed.tgz"); err != nil {
+			b.Fatalf("Remove failed: %v", err)
+		}
 	}
 }

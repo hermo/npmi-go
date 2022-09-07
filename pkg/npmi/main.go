@@ -199,10 +199,14 @@ func (m *main) createArchive(cacheKey string) (archiveFilename string, err error
 	archivePath := filepath.Join(m.options.TempDir, createArchiveFilename(cacheKey))
 	log.Debug("Creating archive", "path", archivePath)
 
-	err = archive.Create(archivePath, m.modulesDirectory)
+	warnings, err := archive.Create(archivePath, m.modulesDirectory)
 	if err != nil {
 		log.Error("failed", "error", err)
 		return "", err
+	}
+
+	for _, warning := range warnings {
+		log.Warn(warning)
 	}
 
 	log.Trace("complete")
