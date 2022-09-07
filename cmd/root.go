@@ -23,6 +23,7 @@ func Execute() {
 		Name:       "npmi",
 		Level:      hclog.LevelFromString(options.LogLevel.String()),
 		JSONFormat: options.Json,
+		Color:      hclog.AutoColor,
 	})
 
 	m, err := npmi.New(options, log)
