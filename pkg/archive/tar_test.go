@@ -6,6 +6,8 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -238,6 +240,66 @@ func Test_ExtractFilesEvil(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_CreateAndExtractNormal(t *testing.T) {
+	testDir, err := prepareTestDir()
+	if err != nil {
+		t.Fatalf("Can't create temporary test directory: %v", err)
+	}
+
+	defer removeTestDir(testDir)
+
+	f, err := os.Create("test.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rnd := rand.Intn(1e10)
+
+	testContent := fmt.Sprintf("Hello, testing world! %d", rnd)
+
+	if _, err = f.WriteString(testContent); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+	warnings, err := Create("test.tgz", ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("Unexpected warnings: %v", warnings)
+	}
+
+	if err = os.Remove("test.txt"); err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := os.Open("test.tgz")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manifest, err := Extract(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(manifest) != 1 {
+		t.Fatalf("Expected manifest to contain %d file(s), got %d, manifest: %v", 1, len(manifest), manifest)
+	}
+
+	contentBytes, err := ioutil.ReadFile("test.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(contentBytes)
+	if content != testContent {
+		t.Fatalf("Expected test file content to be '%s', got '%s'", testContent, content)
+	}
+
 }
 
 // Some tests for disallowing bad symlinks
