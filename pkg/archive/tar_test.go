@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -250,20 +249,28 @@ func Test_CreateAndExtractNormal(t *testing.T) {
 
 	defer removeTestDir(testDir)
 
-	f, err := os.Create("test.txt")
-	if err != nil {
+	if err = os.Mkdir("subdir", 0700); err != nil {
 		t.Fatal(err)
 	}
 
 	rnd := rand.Intn(1e10)
 
-	testContent := fmt.Sprintf("Hello, testing world! %d", rnd)
+	subFileContent := fmt.Sprintf("Hello from subdir/subfile.txt! %d", rnd)
 
-	if _, err = f.WriteString(testContent); err != nil {
-		f.Close()
+	if err := os.WriteFile("subdir/subfile.txt", []byte(subFileContent), 0600); err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+
+	if err = os.Symlink("subdir/subfile.txt", "link_to_subfile.txt"); err != nil {
+		t.Fatal(err)
+	}
+
+	testFileContent := fmt.Sprintf("Hello from test.txt! %d", rnd)
+
+	if err = os.WriteFile("test.txt", []byte(testFileContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+
 	warnings, err := Create("test.tgz", ".")
 	if err != nil {
 		t.Fatal(err)
@@ -286,20 +293,39 @@ func Test_CreateAndExtractNormal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(manifest) != 1 {
+	if len(manifest) != 3 {
 		t.Fatalf("Expected manifest to contain %d file(s), got %d, manifest: %v", 1, len(manifest), manifest)
 	}
 
-	contentBytes, err := ioutil.ReadFile("test.txt")
+	contentBytes, err := os.ReadFile("test.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	content := string(contentBytes)
-	if content != testContent {
-		t.Fatalf("Expected test file content to be '%s', got '%s'", testContent, content)
+	if content != testFileContent {
+		t.Fatalf("Expected test.txt content to be '%s', got '%s'", testFileContent, content)
 	}
 
+	contentBytes, err = os.ReadFile("subdir/subfile.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content = string(contentBytes)
+	if content != subFileContent {
+		t.Fatalf("Expected subdir/subfile.txt content to be '%s', got '%s'", subFileContent, content)
+	}
+
+	contentBytes, err = os.ReadFile("link_to_subfile.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content = string(contentBytes)
+	if content != subFileContent {
+		t.Fatalf("Expected symlink link_to_subfile.txt -> subdir/subfile.txt content to be '%s', got '%s'", subFileContent, content)
+	}
 }
 
 // Some tests for disallowing bad symlinks
