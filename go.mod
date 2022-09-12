@@ -3,7 +3,7 @@ module github.com/hermo/npmi-go
 go 1.19
 
 require (
-	github.com/caarlos0/env/v6 v6.10.0
+	github.com/caarlos0/env/v6 v6.10.1
 	github.com/hashicorp/go-hclog v1.3.0
 	github.com/klauspost/pgzip v1.2.5
 	github.com/minio/minio-go/v7 v7.0.36
