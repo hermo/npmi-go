@@ -109,7 +109,7 @@ func Test_HashTree(t *testing.T) {
 
 	for _, expected := range expectedHashes {
 		for _, item := range *hTree {
-			if item.Item.Path == expected.Path {
+			if item.Path == expected.Path {
 				if item.Hash.String() != expected.HashB64 {
 					t.Fatalf("Expected has for %s to be %s, got %s", expected.Path, expected.HashB64, item.Hash)
 				}

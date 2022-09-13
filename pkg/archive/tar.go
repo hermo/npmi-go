@@ -2,6 +2,8 @@ package archive
 
 import (
 	"archive/tar"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hermo/npmi-go/pkg/files"
+	"github.com/hermo/npmi-go/pkg/hash"
 	"github.com/klauspost/pgzip"
 )
 
@@ -17,6 +20,23 @@ import (
 func Create(filename string, src string) (warnings []string, err error) {
 	tree, err := files.CreateFileTree(src)
 	if err != nil {
+		return nil, err
+	}
+
+	hTree, err := hash.HashTree(tree)
+	if err != nil {
+		return nil, err
+	}
+
+	hashFileName := "npmi.index"
+	hashFilePath := filepath.Join(src, hashFileName)
+
+	hashFile, err := os.Create(hashFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer hashFile.Close()
+	if err = json.NewEncoder(hashFile).Encode(hTree); err != nil {
 		return nil, err
 	}
 
@@ -41,7 +61,25 @@ func Create(filename string, src string) (warnings []string, err error) {
 		return nil, err
 	}
 
+	hashFileStat, err := os.Stat(hashFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// write index file as first item
+	if err := aw.writeRegular(&files.TreeItem{
+		Path:     hashFilePath,
+		FileInfo: &hashFileStat,
+		Type:     files.TypeRegular,
+	}); err != nil {
+		return nil, err
+	}
+
 	for _, item := range *tree {
+		// Skip index file
+		if item.Path == hashFilePath {
+			continue
+		}
 		switch item.Type {
 		case files.TypeLink:
 			if err := aw.writeLink(&item); err != nil {
@@ -221,6 +259,7 @@ func Extract(reader io.Reader) ([]string, error) {
 	}
 
 	var manifest []string
+	var skipped []string
 	gzr, err := pgzip.NewReaderN(reader, 500e3, 50)
 	if err != nil {
 		return nil, err
@@ -230,7 +269,9 @@ func Extract(reader io.Reader) ([]string, error) {
 	tr := tar.NewReader(gzr)
 
 	badPath := NewBadPath(false)
-	for {
+
+	var iMap map[string]hash.Hash
+	for numFiles := 0; ; numFiles++ {
 		header, err := tr.Next()
 		if err == io.EOF {
 			break
@@ -249,6 +290,42 @@ func Extract(reader io.Reader) ([]string, error) {
 		// the target location where the dir/file should be created
 		target := header.Name
 		target = filepath.ToSlash(filepath.Clean(target))
+
+		if numFiles == 0 {
+			fmt.Println(target)
+			if target == "node_modules/npmi.index" {
+				var buf bytes.Buffer
+				// copy over contents
+				if _, err := io.Copy(&buf, tr); err != nil {
+					return nil, err
+				}
+
+				raw := []struct {
+					Hash string `json:"hash"`
+					Path string `json:"path"`
+				}{}
+
+				if err = json.Unmarshal(buf.Bytes(), &raw); err != nil {
+					return nil, err
+				}
+
+				fmt.Printf("Hash tree contains %d items\n", len(raw))
+
+				iMap = make(map[string]hash.Hash, len(raw))
+				for _, item := range raw {
+					hash, err := hash.NewHashFromB64(item.Hash)
+					if err != nil {
+						return nil, err
+					}
+					iMap[item.Path] = hash
+				}
+
+				continue
+			} else {
+				fmt.Println("Not index file, dying")
+				os.Exit(1)
+			}
+		}
 
 		if badPath.IsBad(target) {
 			return nil, fmt.Errorf("invalid path: contains bad characters")
@@ -274,6 +351,17 @@ func Extract(reader io.Reader) ([]string, error) {
 
 		// if it's a file create it
 		case tar.TypeReg:
+			hash, err := hash.HashFile(target)
+			if err == nil {
+				if h2, ok := iMap[target]; ok {
+					if hash.Equal(h2) {
+						fmt.Printf("%s is unchanged, skipping\n", target)
+						manifest = append(manifest, target)
+						skipped = append(skipped, target)
+						continue
+					}
+				}
+			}
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
 				return nil, err
@@ -328,6 +416,8 @@ func Extract(reader io.Reader) ([]string, error) {
 		}
 
 	}
+
+	fmt.Printf("Skipped %d files\n", len(skipped))
 	return manifest, nil
 }
 
