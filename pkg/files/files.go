@@ -35,10 +35,9 @@ func RemoveFilesNotPresentInManifest(directory string, filesTokeep []string) ([]
 	var filesRemoved []string
 
 	// Convert manifest into a map
-	// TODO: Just create the manifest in map for to begin with
-	m := make(map[string]bool, len(filesTokeep))
+	m := make(map[string]struct{}, len(filesTokeep))
 	for _, f := range filesTokeep {
-		m[f] = true
+		m[f] = struct{}{}
 	}
 
 	return filesRemoved, filepath.Walk(directory, func(file string, fi os.FileInfo, err error) error {
@@ -46,15 +45,15 @@ func RemoveFilesNotPresentInManifest(directory string, filesTokeep []string) ([]
 			return err
 		}
 
+		// Skip if not a file or symlink
 		if !(fi.Mode().IsRegular() || fi.Mode()&os.ModeSymlink != 0) {
 			return nil
 		}
 
 		// Delete files not present in manifest
-		if !m[file] {
+		if _, ok := m[file]; !ok {
 			filesRemoved = append(filesRemoved, file)
-			err = os.Remove(file)
-			if err != nil {
+			if err = os.Remove(file); err != nil {
 				return err
 			}
 		}
