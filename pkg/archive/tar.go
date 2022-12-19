@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -131,11 +132,12 @@ func Create(filename string, src string) (warnings []string, err error) {
 }
 
 type badpath struct {
-	allowDoubleDot bool
+	allowDoubleDot           bool
+	disallowedFirstCharRegex *regexp.Regexp
 }
 
 func NewBadPath(allowDoubleDot bool) *badpath {
-	return &badpath{allowDoubleDot}
+	return &badpath{allowDoubleDot, regexp.MustCompile(`^[\x00-\x1F\s!"#$%&'()*+,\-/:;<=>?@[\]^_` + "`" + `{|}~]`)}
 }
 
 func (bp *badpath) IsBad(path string) bool {
@@ -143,15 +145,11 @@ func (bp *badpath) IsBad(path string) bool {
 		return true
 	}
 
+	if bp.disallowedFirstCharRegex.MatchString(path) {
+		return true
+	}
+
 	if !bp.allowDoubleDot && strings.Contains(path, "..") {
-		return true
-	}
-
-	if path[0] == '/' {
-		return true
-	}
-
-	if strings.HasPrefix(path, " ") {
 		return true
 	}
 
