@@ -143,10 +143,8 @@ func (bp *badpath) IsBad(path string) bool {
 		return true
 	}
 
-	if !bp.allowDoubleDot {
-		if strings.Contains(path, "..") {
-			return true
-		}
+	if !bp.allowDoubleDot && strings.Contains(path, "..") {
+		return true
 	}
 
 	if path[0] == '/' {
