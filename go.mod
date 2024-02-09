@@ -3,14 +3,13 @@ module github.com/hermo/npmi-go
 go 1.19
 
 require (
-	github.com/caarlos0/env/v6 v6.10.1
+	github.com/caarlos0/env/v10 v10.0.0
 	github.com/hashicorp/go-hclog v1.6.2
 	github.com/klauspost/pgzip v1.2.6
 	github.com/minio/minio-go/v7 v7.0.66
 )
 
 require (
-	github.com/caarlos0/env/v10 v10.0.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/google/uuid v1.5.0 // indirect

@@ -39,8 +39,6 @@ changelog:
 archives:
   - id: tgz
     format: tar.gz
-    replacements:
-      darwin: macOS
     format_overrides:
       - goos: windows
         format: zip
@@ -63,8 +61,7 @@ nfpms:
       - deb
       - rpm
 brews:
-  -
-    tap:
+  - tap:
       owner: hermo
       name: homebrew-npmi
 

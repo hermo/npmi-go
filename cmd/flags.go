@@ -6,7 +6,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/caarlos0/env/v6"
+	"github.com/caarlos0/env/v10"
 	"github.com/hermo/npmi-go/pkg/npmi"
 )
 
@@ -84,9 +84,9 @@ func ParseFlags() (*npmi.Options, error) {
 		return level, nil
 	}
 
-	if err := env.ParseWithFuncs(options, map[reflect.Type]env.ParserFunc{
+	if err := env.ParseWithOptions(options, env.Options{FuncMap: map[reflect.Type]env.ParserFunc{
 		reflect.TypeOf(npmi.LogLevel(0)): logLevelParser,
-	}); err != nil {
+	}}); err != nil {
 		return nil, fmt.Errorf("could not parse env options: %+v", err)
 	}
 
