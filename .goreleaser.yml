@@ -50,7 +50,7 @@ signs:
     cmd: "sh"
     args:
       - "-c"
-      - "minisign -s /mnt/st1/npmi-go.sec -Sm ${artifact} < /mnt/st1/npmi-go.pass"
+      - "minisign -s /mnt/st/npmi-go.sec -Sm ${artifact} < /mnt/st/npmi-go.pass"
     artifacts: all
 
 nfpms:
