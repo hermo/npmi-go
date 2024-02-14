@@ -39,6 +39,8 @@ archives:
   - id: tgz
     format: tar.gz
 
+report_sizes: true
+
 signs:
   - signature: "${artifact}.minisig"
     cmd: "sh"
