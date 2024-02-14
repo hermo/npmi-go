@@ -35,8 +35,8 @@ Use the following env variables to set default options.
   NPMI_TEMP_DIR  Use specified temp directory when creating archives (Default: system temp)
 
 Tar file security hardening:
-  NPMI_TAR_ABSOLUTE_PATHS           Allow absolute paths in tar archives (Default: true)
-  NPMI_TAR_DOUBLE_DOT_PATHS         Allow double dot paths in tar archives (Default: true)
+  NPMI_TAR_ABSOLUTE_PATHS     Allow absolute paths in tar archives (Default: true)
+  NPMI_TAR_DOUBLE_DOT_PATHS   Allow double dot paths in tar archives (Default: true)
   NPMI_TAR_LINKS_OUTSIDE_CWD  Allow links outside of the current working directory (Default: true)
 
 Local cache:
