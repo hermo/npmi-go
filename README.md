@@ -1,6 +1,7 @@
 [![CodeQL](https://github.com/hermo/npmi-go/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/hermo/npmi-go/actions/workflows/codeql-analysis.yml)
 
 # npmi-go
+
 npmi-go caches the contents of node_modules directory in a tarball stored
 locally or in a Minio instance. The Node runtime environment and a hash of
 package-lock.json is used as the cache key.
@@ -11,17 +12,21 @@ The cache key is something like
 ![Diagram describing how npmi-go works](npmi-go.svg)
 
 # Not for production (yet)
+
 Note that npmi-go is work-in-progress and should not be used in production.
 
 # Installation
+
 - Download a prebuilt binary from the [releases page](https://github.com/hermo/npmi-go/releases/latest)
 
 # Building
 
 ## Quick & dirty
+
 Just run `go build` in the root directory to build `npmi-go` binary.
 
 ## Goreleaser
+
 Dev builds for your system only may be built by using goreleaser:
 
 ```
@@ -36,14 +41,19 @@ Creating a symlink with a shorter name is recommended for testing:
 # Releasing
 
 1. Create a git tag with the desired version
+
 ```
 git tag v0.4.0
 ```
+
 2. Create a release build to see if everything is setup correctly
+
 ```
 goreleaser release --rm-dist --skip-publish
 ```
+
 3. If everything seems OK, release to Github by running
+
 ```
 goreleaser release --rm-dist
 ```
@@ -69,12 +79,14 @@ install the same deps over and over again and using a shared cache will
 reduce bandwidth, IO and CPU usage significantly.
 
 ### Security notice
+
 Note that the contents of a tarball in the cache are not checked in any way
 and only trusted systems should be allowed to access the shared cache.
 
 ### Testing with Minio
 
 1. Start a temporary Minio instance using Docker:
+
 ```
 docker run --rm --name minio \
 -p 9000:9000 -p 9001:9001 \
@@ -84,15 +96,19 @@ docker run --rm --name minio \
 minio/minio \
 server /data --console-address ":9001"
 ```
+
 2. Edit `test/minio/config.json` and change the IP to match whatever Minio reports.
 3. Create a bucket called `npmi` using Minio Client:
+
 ```
 docker run -v "$PWD/test/minio/config.json:/root/.mc/config.json" minio/mc --insecure mb minio/npmi
 ```
+
 4. Use the dummy project under `testdata/` and run npmi-go using minio:
+
 ```
 cd testdata
-../npmi-go -loglevel debug \
+../npmi-go -loglevel trace \
 -minio=1 \
 -minio-endpoint=localhost:9000 \
 -minio-bucket=npmi \
@@ -105,46 +121,58 @@ cd testdata
 Note that we disable the local cache for testing purposes.
 
 ```
-npmi-go start
-Lookup start, looking for cache key v14.17.1-linux-x64-dev-774058b9ec06e745270e3dff174406ba12b86bc2bc1b9daf9eb42485b4e20c13
-Lookup(minio).Has start
-Lookup(minio).Has complete: MISS
-Lookup complete
-Install start
-Install(npm).InstallPackages start
-Install(npm).InstallPackages complete: success: added 1 packages in 0.071s
-Install complete
-Archive start
-Archive creating modules-v14.17.1-linux-x64-dev-774058b9ec06e745270e3dff174406ba12b86bc2bc1b9daf9eb42485b4e20c13.tar.gz
-Archive complete
-Cache start
-Cache.OpenArchive start
-Cache.OpenArchive complete
-Cache(minio).Put start
-Cache(minio).Put complete
-Cache complete
-Post-Archive: Removed temporary archive modules-v14.17.1-linux-x64-dev-774058b9ec06e745270e3dff174406ba12b86bc2bc1b9daf9eb42485b4e20c13.tar.gz
-npmi-go complete
+2024-02-14T13:13:16.176+0200 [INFO]  npmi: Starting installation: version=dev
+2024-02-14T13:13:16.176+0200 [TRACE] npmi.cache: start: cacheKey=v20.10.0-linux-x64-dev-b7782c38ef77fe9874c3c30e7a0ba49ce90c8a3e394df9b775db4e502ec19f26
+2024-02-14T13:13:16.176+0200 [TRACE] npmi.cache.minio.lookup: start
+2024-02-14T13:13:16.176+0200 [TRACE] npmi.cache.minio.has: start: key=v20.10.0-linux-x64-dev-b7782c38ef77fe9874c3c30e7a0ba49ce90c8a3e394df9b775db4e502ec19f26
+2024-02-14T13:13:16.181+0200 [TRACE] npmi.cache.minio.has: complete: found=false
+2024-02-14T13:13:16.181+0200 [TRACE] npmi.cache.minio.lookup: complete
+2024-02-14T13:13:16.181+0200 [DEBUG] npmi.cache.minio.lookup: cache MISS
+2024-02-14T13:13:16.181+0200 [TRACE] npmi.cache: complete
+2024-02-14T13:13:16.181+0200 [TRACE] npmi.install: start
+2024-02-14T13:13:16.181+0200 [TRACE] npmi.installPackages: start
+2024-02-14T13:13:16.181+0200 [TRACE] npmi.npmInstaller: Running: npmBinary=/usr/bin/npm args=["ci", "--dev", "--loglevel", "error", "--progress", "false"]
+2024-02-14T13:13:16.814+0200 [TRACE] npmi.installPackages: complete: stdout="added 2 packages, and audited 3 packages in 492ms\n\nfound 0 vulnerabilities"
+2024-02-14T13:13:16.814+0200 [TRACE] npmi.installPackages: complete
+2024-02-14T13:13:16.814+0200 [TRACE] npmi.createArchive: start
+2024-02-14T13:13:16.814+0200 [DEBUG] npmi.createArchive: Creating archive: path=/tmp/modules-v20.10.0-linux-x64-dev-b7782c38ef77fe9874c3c30e7a0ba49ce90c8a3e394df9b775db4e502ec19f26.tar.gz
+2024-02-14T13:13:16.821+0200 [TRACE] npmi.createArchive: complete
+2024-02-14T13:13:16.821+0200 [TRACE] npmi.cacheArchive: start
+2024-02-14T13:13:16.821+0200 [TRACE] npmi.cacheArchive.minio: start
+2024-02-14T13:13:16.821+0200 [TRACE] npmi.cache.minio.put: start: key=v20.10.0-linux-x64-dev-b7782c38ef77fe9874c3c30e7a0ba49ce90c8a3e394df9b775db4e502ec19f26
+2024-02-14T13:13:16.848+0200 [TRACE] npmi.cache.minio.put: complete
+2024-02-14T13:13:16.848+0200 [TRACE] npmi.cacheArchive.minio: complete
+2024-02-14T13:13:16.848+0200 [TRACE] npmi.cacheArchive: complete
+2024-02-14T13:13:16.848+0200 [DEBUG] npmi.createArchive: Removed temporary archive: path=/tmp/modules-v20.10.0-linux-x64-dev-b7782c38ef77fe9874c3c30e7a0ba49ce90c8a3e394df9b775db4e502ec19f26.tar.gz
+2024-02-14T13:13:16.848+0200 [TRACE] npmi: complete
+2024-02-14T13:13:16.848+0200 [INFO]  npmi: Installation complete
 ```
 
 Now run the same `npmi-go` command again. The output will be something like:
 
 ```
-npmi-go start
-Lookup start, looking for cache key v14.17.1-linux-x64-dev-774058b9ec06e745270e3dff174406ba12b86bc2bc1b9daf9eb42485b4e20c13
-Lookup(minio).Has start
-Lookup(minio).Has complete: HIT
-Lookup(minio).Get start
-Lookup(minio).Get complete
-Lookup(minio).Extract start
-Cleanup start
-Cleanup complete, 0 extraneous files removed
-Lookup(minio).Extract complete
-Lookup complete
-npmi-go complete
+2024-02-14T13:14:37.014+0200 [INFO]  npmi: Starting installation: version=dev
+2024-02-14T13:14:37.014+0200 [TRACE] npmi.cache: start: cacheKey=v20.10.0-linux-x64-dev-b7782c38ef77fe9874c3c30e7a0ba49ce90c8a3e394df9b775db4e502ec19f26
+2024-02-14T13:14:37.014+0200 [TRACE] npmi.cache.minio.lookup: start
+2024-02-14T13:14:37.014+0200 [TRACE] npmi.cache.minio.has: start: key=v20.10.0-linux-x64-dev-b7782c38ef77fe9874c3c30e7a0ba49ce90c8a3e394df9b775db4e502ec19f26
+2024-02-14T13:14:37.021+0200 [TRACE] npmi.cache.minio.has: complete: found=true
+2024-02-14T13:14:37.021+0200 [TRACE] npmi.cache.minio.lookup: complete
+2024-02-14T13:14:37.021+0200 [DEBUG] npmi.cache.minio.lookup: cache HIT
+2024-02-14T13:14:37.021+0200 [TRACE] npmi.cache.minio.fetch: start
+2024-02-14T13:14:37.021+0200 [TRACE] npmi.cache.minio.put: start: key=v20.10.0-linux-x64-dev-b7782c38ef77fe9874c3c30e7a0ba49ce90c8a3e394df9b775db4e502ec19f26
+2024-02-14T13:14:37.021+0200 [TRACE] npmi.cache.minio.fetch: complete
+2024-02-14T13:14:37.021+0200 [TRACE] npmi.cache.minio.extract: start
+2024-02-14T13:14:37.030+0200 [TRACE] npmi.cache.minio.extract.cleanup: start
+2024-02-14T13:14:37.030+0200 [TRACE] npmi.cache.minio.extract.cleanup: complete: numFilesRemoved=0 filesRemoved=[]
+2024-02-14T13:14:37.030+0200 [TRACE] npmi.cache.minio.extract: complete
+2024-02-14T13:14:37.030+0200 [DEBUG] npmi.cache.minio: packages successfully installed from cache
+2024-02-14T13:14:37.030+0200 [TRACE] npmi.cache: complete
+2024-02-14T13:14:37.030+0200 [TRACE] npmi: complete
+2024-02-14T13:14:37.030+0200 [INFO]  npmi: Installation complete
 ```
 
 See the `-minio*` options in usage for more info.
+
 # Usage
 
 ```
@@ -153,7 +181,7 @@ npmi-go installs NPM packages from a cache to speed up repeating installations.
 
 Supported caches:
 -  local          Data is cached locally in a directory.
--  minioData is cached to a (shared) Minio instance.
+-  minio          Data is cached to a (shared) Minio instance.
 
 When using both caches, the local one is accessed first.
 
@@ -169,10 +197,15 @@ Use the following env variables to set default options.
                  Please use NPMI_LOGLEVEL with 'debug' or 'trace'
   NPMI_FORCE     Force (re)installation of deps
   NPMI_PRECACHE  Pre-cache command
+  NPMI_TEMP_DIR  Use specified temp directory when creating archives (Default: system temp)
+
+Tar file security hardening:
+    NPMI_TAR_ABSOLUTE_PATHS    Allow absolute paths in tar archives (Default: true)
+    NPMI_TAR_DOUBLE_DOT_PATHS  Allow double dot paths in tar archives (Default: true)
 
 Local cache:
   NPMI_LOCAL      Use local cache
-  NPMI_LOCAL_DIR  Local cache directory
+  NPMI_LOCAL_DIR  Local cache directory (Default: system temp)
 
 Minio cache:
   NPMI_MINIO                    Use Minio cache
@@ -182,35 +215,43 @@ Minio cache:
   NPMI_MINIO_BUCKET             Minio bucket name
   NPMI_MINIO_TLS                Use TLS when connection to minio
   NPMI_MINIO_TLS_INSECURE       Disable TLS certificate checks
-  NPMI_TEMP_DIR                 Use specified temp directory when creating archives (Default: system temp)
 
 OPTIONS:
   -force
         Force (re)installation of NPM deps and update cache(s)
+  -json
+        Use JSON output
   -local
-        Use local cache (default true)
+        Use local cache
   -local-dir string
         Local cache directory (default "/tmp")
   -loglevel string
         Log level. One of info|debug|trace (default "info")
   -minio
-        Use Minio for caching
+        Use Minio for caching (default true)
   -minio-access-key-id string
-        Minio access key ID
+        Minio access key ID (default "EJjhQWkij3PlGwxVcN0n")
   -minio-bucket string
-        Minio Bucket
+        Minio Bucket (default "npmi-go")
   -minio-endpoint string
-        Minio endpoint
+        Minio endpoint (default "minio-npmi-go.ci.dev.verkkokauppa.com")
   -minio-secret-access-key string
-        Minio secret access key
+        Minio secret access key (default "K1BlFkl1In8VsewpQzjX")
   -minio-tls
         Use TLS to access Minio cache (default true)
   -minio-tls-insecure
         Disable TLS certificate checks
   -precache string
         Run the following shell command before caching packages
+  -tar-absolute-paths
+        Allow absolute paths in tar archives (default true)
+  -tar-double-dot-paths
+        Allow double dot paths in tar archives (default true)
   -temp-dir string
         Temporary directory for archive creation (default "/tmp")
+  -verbose
+        Verbose output, DEPRECATED
+        Please use -loglevel with 'debug' or 'trace'
 ```
 
 ## Configuration with .npmirc
@@ -224,10 +265,13 @@ The environment variables described before are used as defaults when present.
 # Known Issues
 
 ## package-lock.json sync is not checked
+
 npmi-go does not check is a package-lock.json file is in sync with package.lock.
 
 ## post-installation side effects outside node_modules/ will be ignored
+
 Any post-installation script of NPM will NOT get run when installing
 from cache. This includes at least the following:
+
 - install
 - postinstall
