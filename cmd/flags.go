@@ -6,7 +6,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/caarlos0/env/v6"
+	"github.com/caarlos0/env/v10"
 	"github.com/hermo/npmi-go/pkg/npmi"
 )
 
@@ -34,6 +34,11 @@ Use the following env variables to set default options.
   NPMI_PRECACHE  Pre-cache command
   NPMI_TEMP_DIR  Use specified temp directory when creating archives (Default: system temp)
 
+Tar file security hardening:
+  NPMI_TAR_ABSOLUTE_PATHS           Allow absolute paths in tar archives (Default: true)
+  NPMI_TAR_DOUBLE_DOT_PATHS         Allow double dot paths in tar archives (Default: true)
+  NPMI_TAR_LINKS_OUTSIDE_CWD  Allow links outside of the current working directory (Default: true)
+
 Local cache:
   NPMI_LOCAL      Use local cache
   NPMI_LOCAL_DIR  Local cache directory (Default: system temp)
@@ -57,10 +62,13 @@ func ParseFlags() (*npmi.Options, error) {
 		LogLevel: npmi.Info,
 		Force:    false,
 
-		UseLocalCache:   true,
-		UseMinioCache:   false,
-		PrecacheCommand: "",
-		TempDir:         os.TempDir(),
+		UseLocalCache:      true,
+		UseMinioCache:      false,
+		TarDoubleDotPaths:  true,
+		TarAbsolutePaths:   true,
+		TarLinksOutsideCwd: true,
+		PrecacheCommand:    "",
+		TempDir:            os.TempDir(),
 	}
 	localCache := &npmi.LocalCacheOptions{
 		Dir: os.TempDir(),
@@ -84,9 +92,9 @@ func ParseFlags() (*npmi.Options, error) {
 		return level, nil
 	}
 
-	if err := env.ParseWithFuncs(options, map[reflect.Type]env.ParserFunc{
+	if err := env.ParseWithOptions(options, env.Options{FuncMap: map[reflect.Type]env.ParserFunc{
 		reflect.TypeOf(npmi.LogLevel(0)): logLevelParser,
-	}); err != nil {
+	}}); err != nil {
 		return nil, fmt.Errorf("could not parse env options: %+v", err)
 	}
 
@@ -113,6 +121,9 @@ func ParseFlags() (*npmi.Options, error) {
 	flag.BoolVar(&minioCache.InsecureTLS, "minio-tls-insecure", minioCache.InsecureTLS, "Disable TLS certificate checks")
 	flag.StringVar(&options.PrecacheCommand, "precache", options.PrecacheCommand, "Run the following shell command before caching packages")
 	flag.StringVar(&options.TempDir, "temp-dir", options.TempDir, "Temporary directory for archive creation")
+	flag.BoolVar(&options.TarDoubleDotPaths, "tar-double-dot-paths", options.TarDoubleDotPaths, "Allow double dot paths in tar archives")
+	flag.BoolVar(&options.TarAbsolutePaths, "tar-absolute-paths", options.TarAbsolutePaths, "Allow absolute paths in tar archives")
+	flag.BoolVar(&options.TarLinksOutsideCwd, "tar-links-outside-cwd", options.TarLinksOutsideCwd, "Allow links outside of the current working directory")
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), usage, npmi.Version, npmi.Commit, npmi.CommitDate)

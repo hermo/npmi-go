@@ -13,8 +13,14 @@ import (
 	"github.com/klauspost/pgzip"
 )
 
+type TarOptions struct {
+	AllowAbsolutePaths   bool
+	AllowDoubleDotPaths  bool
+	AllowLinksOutsideCwd bool
+}
+
 // Create an archive file containing the contents of directory src
-func Create(filename string, src string) (warnings []string, err error) {
+func Create(filename string, src string, options *TarOptions) (warnings []string, err error) {
 	f, err := os.Create(filename)
 	if err != nil {
 		return nil, err
@@ -31,7 +37,7 @@ func Create(filename string, src string) (warnings []string, err error) {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
-	badPath := NewBadPath(true)
+	badPath := NewBadPath(options.AllowDoubleDotPaths, options.AllowAbsolutePaths)
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -61,16 +67,26 @@ func Create(filename string, src string) (warnings []string, err error) {
 			}
 
 			pathDir := filepath.Dir(path)
-			linkFull := filepath.Join(wd, pathDir, link)
-
-			//			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", path, pathDir, link, linkFull)
 
 			if badPath.IsBad(link) {
 				return fmt.Errorf("invalid path: contains bad characters: %s", link)
 			}
 
+			var linkFull string
+
+			if filepath.IsAbs(link) {
+				linkFull = link
+			} else {
+				linkFull = filepath.Join(wd, pathDir, link)
+			}
+
 			if strings.Index(linkFull, wd) != 0 {
-				return fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", path, link)
+				err := fmt.Errorf("invalid path: symlink points outside working directory: %s -> %s", path, link)
+				if !options.AllowLinksOutsideCwd {
+					return err
+				} else {
+					warnings = append(warnings, fmt.Sprintf("%v", err))
+				}
 			}
 
 			_, err := os.Stat(linkFull)
@@ -133,14 +149,19 @@ func Create(filename string, src string) (warnings []string, err error) {
 
 type badpath struct {
 	allowDoubleDot           bool
+	allowAbsolutePaths       bool
 	disallowedFirstCharRegex *regexp.Regexp
 }
 
-func NewBadPath(allowDoubleDot bool) *badpath {
-	return &badpath{allowDoubleDot, regexp.MustCompile(`^[\x00-\x1F\s!"#$%&'()*+,\-/:;<=>?@[\]^_` + "`" + `{|}~]`)}
+func NewBadPath(allowDoubleDot bool, allowAbsolutePaths bool) *badpath {
+	return &badpath{allowDoubleDot, allowAbsolutePaths, regexp.MustCompile(`^[\x00-\x1F\s!"#$%&'()*+,\-:;<=>?@[\]^_\x60{|}~]`)}
 }
 
 func (bp *badpath) IsBad(path string) bool {
+	if !bp.allowAbsolutePaths && filepath.IsAbs(path) {
+		return true
+	}
+
 	if strings.ContainsAny(path, "<|>:\"*?\\") {
 		return true
 	}
@@ -153,22 +174,6 @@ func (bp *badpath) IsBad(path string) bool {
 		return true
 	}
 
-	path = strings.ToUpper(path)
-	windowsDevices := []string{"CON", "PRN", "AUX", "NUL"}
-	for _, s := range windowsDevices {
-		if path == s {
-			return true
-		}
-	}
-
-	windowsDevicePrefixes := []string{"COM", "LPT"}
-	for _, s := range windowsDevicePrefixes {
-		if strings.HasPrefix(path, s) && len(path) > 3 {
-			if path[3] >= '1' && path[3] <= '9' {
-				return true
-			}
-		}
-	}
 	return false
 }
 
@@ -188,7 +193,7 @@ func Extract(reader io.Reader) ([]string, error) {
 
 	tr := tar.NewReader(gzr)
 
-	badPath := NewBadPath(false)
+	badPath := NewBadPath(false, false)
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {

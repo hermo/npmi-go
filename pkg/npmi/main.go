@@ -199,7 +199,12 @@ func (m *main) createArchive(cacheKey string) (archiveFilename string, err error
 	archivePath := filepath.Join(m.options.TempDir, createArchiveFilename(cacheKey))
 	log.Debug("Creating archive", "path", archivePath)
 
-	warnings, err := archive.Create(archivePath, m.modulesDirectory)
+	tarOptions := archive.TarOptions{
+		AllowAbsolutePaths:   m.options.TarAbsolutePaths,
+		AllowDoubleDotPaths:  m.options.TarDoubleDotPaths,
+		AllowLinksOutsideCwd: m.options.TarLinksOutsideCwd,
+	}
+	warnings, err := archive.Create(archivePath, m.modulesDirectory, &tarOptions)
 	if err != nil {
 		log.Error("failed", "error", err)
 		return "", err

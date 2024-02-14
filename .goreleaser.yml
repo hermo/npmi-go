@@ -11,7 +11,6 @@ builds:
     goos:
       - linux
       - darwin
-      - windows
     goarch:
       - amd64
       - arm64
@@ -39,18 +38,15 @@ changelog:
 archives:
   - id: tgz
     format: tar.gz
-    replacements:
-      darwin: macOS
-    format_overrides:
-      - goos: windows
-        format: zip
+
+report_sizes: true
 
 signs:
   - signature: "${artifact}.minisig"
     cmd: "sh"
     args:
       - "-c"
-      - "minisign -s /mnt/st1/npmi-go.sec -Sm ${artifact} < /mnt/st1/npmi-go.pass"
+      - "minisign -s /mnt/st/npmi-go.sec -Sm ${artifact} < /mnt/st/npmi-go.pass"
     artifacts: all
 
 nfpms:
@@ -63,8 +59,7 @@ nfpms:
       - deb
       - rpm
 brews:
-  -
-    tap:
+  - repository:
       owner: hermo
       name: homebrew-npmi
 

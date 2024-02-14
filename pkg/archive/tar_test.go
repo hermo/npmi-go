@@ -172,9 +172,6 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		{"/evil.txt", "evil", tar.TypeReg},
 		{"C:/Users/Public/evil.txt", "evil", tar.TypeReg},
 		{"C:|Users/Public/evil.txt", "evil", tar.TypeReg},
-		{"COM1>", "evil", tar.TypeReg},
-		{"CON", "evil", tar.TypeReg},
-		{"NUL", "evil", tar.TypeReg},
 		{"C:\\Users\\Public\\evil2.txt", "evil2", tar.TypeReg},
 		{"abs_link", "/etc/passwd", tar.TypeSymlink},
 		{"outside_link", "../outside_cwd", tar.TypeSymlink},
@@ -253,18 +250,16 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 		{"hello_subdir_1.txt", "subdir/hello.txt", false, 1},
 		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false, 1},
 		{"subdir/hello_parent_1.txt", "../hello.txt", false, 1},
-		// Evil cases
-		{"subdir/evil_parent_0.txt", "../../hello.txt", true, 0},
-		{"evil_parent_1.txt", "../evil.txt", true, 0},
-		{"evil_parent_2.txt", "./../evil.txt", true, 0},
-		{"evil_abs_1.txt", "/evil.txt", true, 0},
-		{"evil_abs_2.txt", "/etc/passwd", true, 0},
+		// Evil cases that are allowed by default for compatibility 🤦‍♂️
+		{"abs_1.txt", "/hello.txt", false, 1},
+		{"abs_2.txt", "/etc/passwd", false, 0},
+		{"subdir/evil_parent_0.txt", "../../hello.txt", false, 1},
+		{"evil_parent_1.txt", "../evil.txt", false, 1},
+		{"evil_parent_2.txt", "./../evil.txt", false, 1},
+		// Still evil
 		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true, 0},
 		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true, 0},
 		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true, 0},
-		{"evil_win_dev_1.txt", "COM1>", true, 0},
-		{"evil_win_dev_2.txt", "CON", true, 0},
-		{"evil_win_dev_3.txt", "NUL", true, 0},
 	}
 
 	for _, tt := range tests {
@@ -294,7 +289,94 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 				t.Fatalf("Can't create test symlink: %v", err)
 			}
 
-			warnings, err := Create("temp.tgz", ".")
+			options := TarOptions{
+				AllowAbsolutePaths:   true,
+				AllowDoubleDotPaths:  true,
+				AllowLinksOutsideCwd: true,
+			}
+			warnings, err := Create("temp.tgz", ".", &options)
+
+			if len(warnings) != tt.WarningCount {
+				t.Errorf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
+			}
+
+			if tt.IsEvil {
+				if err == nil {
+					t.Fatalf("Evil symlink (%s -> %s) should have failed but did not\n", tt.Source, tt.Target)
+				} else {
+					if !strings.Contains(err.Error(), "invalid path") {
+						t.Fatalf("Unexpected error when creating evil symlink (%s -> %s): %v", tt.Source, tt.Target, err)
+					}
+				}
+			} else {
+				if err != nil {
+					if strings.Contains(err.Error(), "invalid path") {
+						t.Fatalf("Normal symlink (%s -> %s) failed: %v", tt.Source, tt.Target, err)
+					} else {
+						t.Fatalf("Unexpected error when creating normal symlink (%s -> %s): %v", tt.Source, tt.Target, err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func Test_CreateArchive_DisallowSymlinksOutsideCwd(t *testing.T) {
+	tests := []struct {
+		Source       string
+		Target       string
+		IsEvil       bool
+		WarningCount int
+	}{
+		// Normal cases
+		{"hello2.txt", "hello.txt", false, 1},
+		{"hello_subdir_1.txt", "subdir/hello.txt", false, 1},
+		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false, 1},
+		{"subdir/hello_parent_1.txt", "../hello.txt", false, 1},
+		// Evil cases
+		{"subdir/evil_parent_0.txt", "../../hello.txt", true, 0},
+		{"evil_parent_1.txt", "../evil.txt", true, 0},
+		{"evil_parent_2.txt", "./../evil.txt", true, 0},
+		{"evil_abs_1.txt", "/evil.txt", true, 0},
+		{"evil_abs_2.txt", "/etc/passwd", true, 0},
+		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true, 0},
+		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true, 0},
+		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true, 0},
+	}
+
+	for _, tt := range tests {
+		var testType string
+		if tt.IsEvil {
+			testType = "EVIL"
+		} else {
+			testType = "NORMAL"
+		}
+		testName := fmt.Sprintf("%s/%s", testType, tt.Source)
+
+		t.Run(testName, func(t *testing.T) {
+			testDir, err := prepareTestDir()
+			if err != nil {
+				t.Fatalf("Can't create temporary test directory: %v", err)
+			}
+
+			defer removeTestDir(testDir)
+
+			err = os.Mkdir("subdir", 0750)
+			if err != nil {
+				t.Fatalf("Can't create test subdir: %v", err)
+			}
+
+			err = os.Symlink(tt.Target, tt.Source)
+			if err != nil {
+				t.Fatalf("Can't create test symlink: %v", err)
+			}
+
+			options := TarOptions{
+				AllowAbsolutePaths:   false,
+				AllowDoubleDotPaths:  true,
+				AllowLinksOutsideCwd: false,
+			}
+			warnings, err := Create("temp.tgz", ".", &options)
 
 			if len(warnings) != tt.WarningCount {
 				t.Errorf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
@@ -392,119 +474,118 @@ func BenchmarkExtract(b *testing.B) {
 
 func TestBadPath(t *testing.T) {
 	tests := []struct {
-		allowDoubleDot bool
-		Path           string
-		Expected       bool
+		allowDoubleDot     bool
+		allowAbsolutePaths bool
+		Path               string
+		Expected           bool
 	}{
 		// Evil inputs, double dots not allowed
-		{false, "/evil1.txt", true},
-		{false, "evil11..txt", true},
-		{false, "../evil2.txt", true},
-		{false, "C:/Users/Public/evil3.txt", true},
-		{false, "C:|Users/Public/evil4.txt", true},
-		{false, "<", true},
-		{false, "<foo", true},
-		{false, " <foo2", true},
-		{false, "bar>", true},
-		{false, "COM1>", true},
-		{false, "com3", true},
-		{false, "LpT7", true},
-		{false, "LPT3", true},
-		{false, "COM9", true},
-		{false, "win\\separator", true},
-		{false, "CON", true},
-		{false, "NUL", true},
-		{false, "\tbadpath", true},
-		{false, "\x01badpath", true},
-		{false, "!badpath", true},
-		{false, "@badpath", true},
-		{false, ":evil.txt", true},
-		{false, ";evil.txt", true},
-		{false, "!evil.txt", true},
-		{false, "@evil.txt", true},
-		{false, "#evil.txt", true},
-		{false, "$evil.txt", true},
-		{false, "%evil.txt", true},
-		{false, "^evil.txt", true},
-		{false, "&evil.txt", true},
-		{false, "*evil.txt", true},
-		{false, "(evil.txt", true},
-		{false, ")evil.txt", true},
-		{false, "+evil.txt", true},
-		{false, "=evil.txt", true},
-		{false, "{evil.txt", true},
-		{false, "}evil.txt", true},
-		{false, "[evil.txt", true},
-		{false, "]evil.txt", true},
-		{false, "|evil.txt", true},
-		{false, "\\evil.txt", true},
-		{false, "/evil.txt", true},
-		{false, "?evil.txt", true},
-		{false, "<evil.txt", true},
-		{false, ">evil.txt", true},
-		{false, ",evil.txt", true},
-		{false, "`evil.txt", true},
-		{false, "~evil.txt", true},
-		{false, " evil.txt", true},
-		{false, "\tevil.txt", true},
-		{false, "\x01evil.txt", true},
-		{false, "\x02evil.txt", true},
-		{false, "\x03evil.txt", true},
-		{false, "\x04evil.txt", true},
-		{false, "\x05evil.txt", true},
-		{false, "\x06evil.txt", true},
-		{false, "\x07evil.txt", true},
-		{false, "\x08evil.txt", true},
-		{false, "\x09evil.txt", true},
-		{false, "\x0aevil.txt", true},
-		{false, "\x0bevil.txt", true},
-		{false, "\x0cevil.txt", true},
-		{false, "\x0devil.txt", true},
-		{false, "\x0eevil.txt", true},
-		{false, "\x0fevil.txt", true},
-		{false, "\x10evil.txt", true},
-		{false, "\x11evil.txt", true},
-		{false, "\x12evil.txt", true},
-		{false, "\x13evil.txt", true},
-		{false, "\x14evil.txt", true},
-		{false, "\x15evil.txt", true},
-		{false, "\x16evil.txt", true},
-		{false, "\x17evil.txt", true},
-		{false, "\x18evil.txt", true},
-		{false, "\x19evil.txt", true},
-		{false, "\x1aevil.txt", true},
-		{false, "\x1bevil.txt", true},
-		{false, "\x1cevil.txt", true},
-		{false, "\x1devil.txt", true},
-		{false, "\x1eevil.txt", true},
-		{false, "\x1fevil.txt", true},
-		{false, " Spaceman", true},
-		{false, "C:\\Users\\Public\\evil5.txt", true},
+		{false, false, "/evil1.txt", true},
+		{false, false, `\evil1.txt`, true},
+		{false, false, "evil11..txt", true},
+		{false, false, "../evil2.txt", true},
+		{false, false, "C:/Users/Public/evil3.txt", true},
+		{false, false, "C:|Users/Public/evil4.txt", true},
+		{false, false, "<", true},
+		{false, false, "<foo", true},
+		{false, false, " <foo2", true},
+		{false, false, "bar>", true},
+		{false, false, "win\\separator", true},
+		{false, false, "\tbadpath", true},
+		{false, false, "\x01badpath", true},
+		{false, false, "!badpath", true},
+		{false, false, "@badpath", true},
+		{false, false, ":evil.txt", true},
+		{false, false, ";evil.txt", true},
+		{false, false, "!evil.txt", true},
+		{false, false, "@evil.txt", true},
+		{false, false, "#evil.txt", true},
+		{false, false, "$evil.txt", true},
+		{false, false, "%evil.txt", true},
+		{false, false, "^evil.txt", true},
+		{false, false, "&evil.txt", true},
+		{false, false, "*evil.txt", true},
+		{false, false, "(evil.txt", true},
+		{false, false, ")evil.txt", true},
+		{false, false, "+evil.txt", true},
+		{false, false, "=evil.txt", true},
+		{false, false, "{evil.txt", true},
+		{false, false, "}evil.txt", true},
+		{false, false, "[evil.txt", true},
+		{false, false, "]evil.txt", true},
+		{false, false, "|evil.txt", true},
+		{false, false, "\\evil.txt", true},
+		{false, false, "/evil.txt", true},
+		{false, false, "?evil.txt", true},
+		{false, false, "<evil.txt", true},
+		{false, false, ">evil.txt", true},
+		{false, false, ",evil.txt", true},
+		{false, false, "`evil.txt", true},
+		{false, false, "~evil.txt", true},
+		{false, false, " evil.txt", true},
+		{false, false, "\tevil.txt", true},
+		{false, false, "\x01evil.txt", true},
+		{false, false, "\x02evil.txt", true},
+		{false, false, "\x03evil.txt", true},
+		{false, false, "\x04evil.txt", true},
+		{false, false, "\x05evil.txt", true},
+		{false, false, "\x06evil.txt", true},
+		{false, false, "\x07evil.txt", true},
+		{false, false, "\x08evil.txt", true},
+		{false, false, "\x09evil.txt", true},
+		{false, false, "\x0aevil.txt", true},
+		{false, false, "\x0bevil.txt", true},
+		{false, false, "\x0cevil.txt", true},
+		{false, false, "\x0devil.txt", true},
+		{false, false, "\x0eevil.txt", true},
+		{false, false, "\x0fevil.txt", true},
+		{false, false, "\x10evil.txt", true},
+		{false, false, "\x11evil.txt", true},
+		{false, false, "\x12evil.txt", true},
+		{false, false, "\x13evil.txt", true},
+		{false, false, "\x14evil.txt", true},
+		{false, false, "\x15evil.txt", true},
+		{false, false, "\x16evil.txt", true},
+		{false, false, "\x17evil.txt", true},
+		{false, false, "\x18evil.txt", true},
+		{false, false, "\x19evil.txt", true},
+		{false, false, "\x1aevil.txt", true},
+		{false, false, "\x1bevil.txt", true},
+		{false, false, "\x1cevil.txt", true},
+		{false, false, "\x1devil.txt", true},
+		{false, false, "\x1eevil.txt", true},
+		{false, false, "\x1fevil.txt", true},
+		{false, false, " Spaceman", true},
+		{false, false, "C:\\Users\\Public\\evil5.txt", true},
 
 		// Evil inputs, double dots allowed
-		{true, "/../evil_double_dots_6.txt", true},
-		{true, "/../evil_double_dots_61..txt", true},
+		{true, false, "/../evil_double_dots_6.txt", true},
+		{true, false, "/../evil_double_dots_61..txt", true},
 
 		// Good inputs, double dots disallowed
-		{false, "kissa7.txt", false},
-		{false, "foo/bar//double_dots71.txt", false},
-		{false, "COM0", false},
-		{false, "COM", false},
-		{false, "Hello dolly", false},
+		{false, false, "kissa7.txt", false},
+		{false, false, "foo/bar//double_dots71.txt", false},
+		{false, false, "Hello dolly", false},
 
 		// Good inputs, double dots allowed
-		{true, "../double_dots8.txt", false},
-		{true, "double_dots9..txt", false},
-		{true, "LPT0", false},
-		{true, "LPT", false},
-		{true, "COMA", false},
-		{true, "CONAIR", false},
-		{true, "NULL", false},
-		{true, "Program Files/my app.exe", false},
+		{true, false, "../double_dots8.txt", false},
+		{true, false, "double_dots9..txt", false},
+
+		// Good inputs, double dots disallowed, absolute paths allowed
+		{false, true, "/kissa.txt", false},
+
+		// Evil inputs, double dots disallowed, absolute paths allowed
+		{false, true, "../kissa.txt", true},
+		{false, true, "/../kissa.txt", true},
+
+		// Good inputs, double dots allowed, absolute paths allowed
+		{true, true, "/kissa.txt", false},
+		{true, true, "../kissa.txt", false},
+		{true, true, "/../kissa.txt", false},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("allowDoubleDots:%v,Path:%s", tt.allowDoubleDot, tt.Path), func(t *testing.T) {
-			bp := NewBadPath(tt.allowDoubleDot)
+			bp := NewBadPath(tt.allowDoubleDot, tt.allowAbsolutePaths)
 			if bp.IsBad(tt.Path) != tt.Expected {
 				t.Errorf("IsBad(%s) did not return %v", tt.Path, tt.Expected)
 			}
@@ -513,7 +594,7 @@ func TestBadPath(t *testing.T) {
 }
 
 func BenchmarkBadPath(b *testing.B) {
-	bp := NewBadPath(false)
+	bp := NewBadPath(false, false)
 	path := "node_modules/foo_bar/baz.js/somepath"
 	for i := 0; i < b.N; i++ {
 		bp.IsBad(path)
@@ -553,8 +634,13 @@ func BenchmarkCreate(b *testing.B) {
 	}
 	f.Close()
 
+	options := TarOptions{
+		AllowAbsolutePaths:  false,
+		AllowDoubleDotPaths: true,
+	}
+
 	for i := 0; i < b.N; i++ {
-		warnings, err := Create("compressed.tgz", "node_modules")
+		warnings, err := Create("compressed.tgz", "node_modules", &options)
 		if err != nil {
 			b.Fatalf("Create failed: %v", err)
 		}
