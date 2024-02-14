@@ -67,6 +67,6 @@ type Options struct {
 	UseLocalCache       bool   `env:"NPMI_LOCAL"`
 	UseMinioCache       bool   `env:"NPMI_MINIO"`
 	Json                bool   `env:"NPMI_JSON"`
-	AllowDoubleDotPaths bool   `env:"NPMI_ALLOW_DOUBLE_DOT_PATHS"`
-	AllowAbsolutePaths  bool   `env:"NPMI_ALLOW_ABSOLUTE_PATHS"`
+	AllowDoubleDotPaths bool   `env:"NPMI_TAR_DOUBLE_DOT_PATHS"`
+	AllowAbsolutePaths  bool   `env:"NPMI_TAR_ABSOLUTE_PATHS"`
 }

@@ -290,7 +290,7 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 
 			options := TarOptions{
 				AllowAbsolutePaths:  false,
-				AllowDoubleDotPaths: false,
+				AllowDoubleDotPaths: true,
 			}
 			warnings, err := Create("temp.tgz", ".", &options)
 
@@ -552,7 +552,7 @@ func BenchmarkCreate(b *testing.B) {
 
 	options := TarOptions{
 		AllowAbsolutePaths:  false,
-		AllowDoubleDotPaths: false,
+		AllowDoubleDotPaths: true,
 	}
 
 	for i := 0; i < b.N; i++ {

@@ -34,9 +34,9 @@ Use the following env variables to set default options.
   NPMI_PRECACHE  Pre-cache command
   NPMI_TEMP_DIR  Use specified temp directory when creating archives (Default: system temp)
 
-  Tar file security:
-    NPMI_ALLOW_ABSOLUTE_PATHS 	 Allow absolute paths in tar archives (Default: false)
-    NPMI_ALLOW_DOUBLE_DOT_PATHS  Allow double dot paths in tar archives (Default: false)
+Tar file security hardening:
+  NPMI_TAR_ABSOLUTE_PATHS    Allow absolute paths in tar archives (Default: true)
+  NPMI_TAR_DOUBLE_DOT_PATHS  Allow double dot paths in tar archives (Default: true)
 
 Local cache:
   NPMI_LOCAL      Use local cache
@@ -63,8 +63,8 @@ func ParseFlags() (*npmi.Options, error) {
 
 		UseLocalCache:       true,
 		UseMinioCache:       false,
-		AllowDoubleDotPaths: false,
-		AllowAbsolutePaths:  false,
+		AllowDoubleDotPaths: true,
+		AllowAbsolutePaths:  true,
 		PrecacheCommand:     "",
 		TempDir:             os.TempDir(),
 	}
@@ -119,8 +119,8 @@ func ParseFlags() (*npmi.Options, error) {
 	flag.BoolVar(&minioCache.InsecureTLS, "minio-tls-insecure", minioCache.InsecureTLS, "Disable TLS certificate checks")
 	flag.StringVar(&options.PrecacheCommand, "precache", options.PrecacheCommand, "Run the following shell command before caching packages")
 	flag.StringVar(&options.TempDir, "temp-dir", options.TempDir, "Temporary directory for archive creation")
-	flag.BoolVar(&options.AllowDoubleDotPaths, "allow-double-dot-paths", options.AllowDoubleDotPaths, "Allow double dot paths in tar archives")
-	flag.BoolVar(&options.AllowAbsolutePaths, "allow-absolute-paths", options.AllowAbsolutePaths, "Allow absolute paths in tar archives")
+	flag.BoolVar(&options.AllowDoubleDotPaths, "tar-double-dot-paths", options.AllowDoubleDotPaths, "Allow double dot paths in tar archives")
+	flag.BoolVar(&options.AllowAbsolutePaths, "tar-absolute-paths", options.AllowAbsolutePaths, "Allow absolute paths in tar archives")
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), usage, npmi.Version, npmi.Commit, npmi.CommitDate)
