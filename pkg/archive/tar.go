@@ -133,14 +133,19 @@ func Create(filename string, src string) (warnings []string, err error) {
 
 type badpath struct {
 	allowDoubleDot           bool
+	allowAbsolutePaths       bool
 	disallowedFirstCharRegex *regexp.Regexp
 }
 
-func NewBadPath(allowDoubleDot bool) *badpath {
-	return &badpath{allowDoubleDot, regexp.MustCompile(`^[\x00-\x1F\s!"#$%&'()*+,\-/:;<=>?@[\]^_` + "`" + `{|}~]`)}
+func NewBadPath(allowDoubleDot bool, allowAbsolutePaths bool) *badpath {
+	return &badpath{allowDoubleDot, allowAbsolutePaths, regexp.MustCompile(`^[\x00-\x1F\s!"#$%&'()*+,\-:;<=>?@[\]^_\x60{|}~]`)}
 }
 
 func (bp *badpath) IsBad(path string) bool {
+	if !bp.allowAbsolutePaths && filepath.IsAbs(path) {
+		return true
+	}
+
 	if strings.ContainsAny(path, "<|>:\"*?\\") {
 		return true
 	}
