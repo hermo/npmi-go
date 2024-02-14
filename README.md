@@ -30,7 +30,7 @@ Just run `go build` in the root directory to build `npmi-go` binary.
 Dev builds for your system only may be built by using goreleaser:
 
 ```
-goreleaser build --snapshot --rm-dist --single-target
+goreleaser build --snapshot --clean --single-target
 ```
 
 The output will appear under `dist/`.
@@ -49,13 +49,13 @@ git tag v0.4.0
 2. Create a release build to see if everything is setup correctly
 
 ```
-goreleaser release --rm-dist --skip-publish
+goreleaser release --clean --skip=publish
 ```
 
 3. If everything seems OK, release to Github by running
 
 ```
-goreleaser release --rm-dist
+goreleaser release --clean
 ```
 
 # Supported Caches

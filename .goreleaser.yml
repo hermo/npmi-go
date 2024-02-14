@@ -59,7 +59,7 @@ nfpms:
       - deb
       - rpm
 brews:
-  - tap:
+  - repository:
       owner: hermo
       name: homebrew-npmi
 
