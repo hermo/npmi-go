@@ -316,7 +316,15 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 		extractLog := cLog.Named("extract")
 		extractLog.Trace("start")
 
-		archiveManifest, err := archive.Extract(foundArchive)
+		tarOptions := archive.TarOptions{
+			AllowAbsolutePaths:   m.options.TarAbsolutePaths,
+			AllowDoubleDotPaths:  m.options.TarDoubleDotPaths,
+			AllowLinksOutsideCwd: m.options.TarLinksOutsideCwd,
+		}
+		archiveManifest, warnings, err := archive.Extract(foundArchive, &tarOptions)
+		for _, warning := range warnings {
+			log.Warn(warning)
+		}
 		if err != nil {
 			extractLog.Error("failed", "error", err)
 			return false, err

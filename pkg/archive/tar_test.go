@@ -47,6 +47,8 @@ func Test_ExtractFilesNormal(t *testing.T) {
 	// Number of files/links expected in archive
 	wantManifestLen := 5
 
+	wantWarnings := 0
+
 	for _, f := range tarContents {
 		data := []byte(f.Content)
 		hdr := tar.Header{
@@ -101,9 +103,19 @@ func Test_ExtractFilesNormal(t *testing.T) {
 		t.Fatalf("Can't chdir to test directory: %v", err)
 	}
 
-	manifest, err := Extract(&buf)
+	options := TarOptions{
+		AllowAbsolutePaths:   false,
+		AllowDoubleDotPaths:  false,
+		AllowLinksOutsideCwd: false,
+	}
+
+	manifest, warnings, err := Extract(&buf, &options)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
+	}
+
+	if len(warnings) != wantWarnings {
+		t.Fatalf("Expected %d warnings, got %d", wantWarnings, len(warnings))
 	}
 
 	if len(manifest) != wantManifestLen {
@@ -163,18 +175,19 @@ func Test_ExtractFilesNormal(t *testing.T) {
 
 func Test_ExtractFilesEvil(t *testing.T) {
 	tests := []struct {
-		Name    string
-		Content string
-		Type    byte
+		Name           string
+		Content        string
+		Type           byte
+		WantedWarnings int
 	}{
-		{"../evil.txt", "evil", tar.TypeReg},
-		{"./../evil.txt", "evil", tar.TypeReg},
-		{"/evil.txt", "evil", tar.TypeReg},
-		{"C:/Users/Public/evil.txt", "evil", tar.TypeReg},
-		{"C:|Users/Public/evil.txt", "evil", tar.TypeReg},
-		{"C:\\Users\\Public\\evil2.txt", "evil2", tar.TypeReg},
-		{"abs_link", "/etc/passwd", tar.TypeSymlink},
-		{"outside_link", "../outside_cwd", tar.TypeSymlink},
+		{"../evil.txt", "evil", tar.TypeReg, 0},
+		{"./../evil.txt", "evil", tar.TypeReg, 0},
+		{"/evil.txt", "evil", tar.TypeReg, 0},
+		{"C:/Users/Public/evil.txt", "evil", tar.TypeReg, 0},
+		{"C:|Users/Public/evil.txt", "evil", tar.TypeReg, 0},
+		{"C:\\Users\\Public\\evil2.txt", "evil2", tar.TypeReg, 0},
+		{"abs_link", "/etc/passwd", tar.TypeSymlink, 0},
+		{"outside_link", "../outside_cwd", tar.TypeSymlink, 0},
 	}
 
 	for _, tt := range tests {
@@ -225,7 +238,17 @@ func Test_ExtractFilesEvil(t *testing.T) {
 			tw.Close()
 			gzw.Close()
 
-			_, err = Extract(&buf)
+			options := TarOptions{
+				AllowAbsolutePaths:   false,
+				AllowDoubleDotPaths:  false,
+				AllowLinksOutsideCwd: false,
+			}
+
+			_, warnings, err := Extract(&buf, &options)
+			if len(warnings) != tt.WantedWarnings {
+				t.Errorf("Expected %d warnings, got %d", tt.WantedWarnings, len(warnings))
+			}
+
 			if err == nil {
 				t.Errorf("Extract should have failed but did not: %s", tt.Name)
 			} else {
@@ -462,10 +485,16 @@ func BenchmarkExtract(b *testing.B) {
 	}
 	defer f.Close()
 
+	options := TarOptions{
+		AllowAbsolutePaths:   false,
+		AllowDoubleDotPaths:  false,
+		AllowLinksOutsideCwd: false,
+	}
+
 	for i := 0; i < b.N; i++ {
 		f.Seek(0, io.SeekStart)
 
-		_, err := Extract(f)
+		_, _, err := Extract(f, &options)
 		if err != nil {
 			b.Fatalf("Extract failed: %v", err)
 		}
@@ -627,17 +656,17 @@ func BenchmarkCreate(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	options := TarOptions{
+		AllowAbsolutePaths:   false,
+		AllowDoubleDotPaths:  false,
+		AllowLinksOutsideCwd: false,
+	}
 
-	_, err = Extract(f)
+	_, _, err = Extract(f, &options)
 	if err != nil {
 		b.Fatalf("Extract failed: %v", err)
 	}
 	f.Close()
-
-	options := TarOptions{
-		AllowAbsolutePaths:  false,
-		AllowDoubleDotPaths: true,
-	}
 
 	for i := 0; i < b.N; i++ {
 		warnings, err := Create("compressed.tgz", "node_modules", &options)

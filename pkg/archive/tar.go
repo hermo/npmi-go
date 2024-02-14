@@ -67,11 +67,6 @@ func Create(filename string, src string, options *TarOptions) (warnings []string
 			}
 
 			pathDir := filepath.Dir(path)
-
-			if badPath.IsBad(link) {
-				return fmt.Errorf("invalid path: contains bad characters: %s", link)
-			}
-
 			var linkFull string
 
 			if filepath.IsAbs(link) {
@@ -80,8 +75,12 @@ func Create(filename string, src string, options *TarOptions) (warnings []string
 				linkFull = filepath.Join(wd, pathDir, link)
 			}
 
+			if badPath.IsBad(link) {
+				return fmt.Errorf("invalid path: contains bad characters: %s", link)
+			}
+
 			if strings.Index(linkFull, wd) != 0 {
-				err := fmt.Errorf("invalid path: symlink points outside working directory: %s -> %s", path, link)
+				err := fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", path, link)
 				if !options.AllowLinksOutsideCwd {
 					return err
 				} else {
@@ -178,16 +177,15 @@ func (bp *badpath) IsBad(path string) bool {
 }
 
 // Extract all files from an archive to current directory
-func Extract(reader io.Reader) ([]string, error) {
+func Extract(reader io.Reader, options *TarOptions) (manifest []string, warnings []string, err error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	var manifest []string
 	gzr, err := pgzip.NewReaderN(reader, 500e3, 50)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer gzr.Close()
 
@@ -201,7 +199,7 @@ func Extract(reader io.Reader) ([]string, error) {
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		// if the header is nil, just skip it (not sure how this happens)
@@ -215,7 +213,7 @@ func Extract(reader io.Reader) ([]string, error) {
 		target = filepath.ToSlash(filepath.Clean(target))
 
 		if badPath.IsBad(target) {
-			return nil, fmt.Errorf("invalid path: contains bad characters")
+			return nil, nil, fmt.Errorf("invalid path: contains bad characters")
 		}
 
 		// check the file type
@@ -225,7 +223,7 @@ func Extract(reader io.Reader) ([]string, error) {
 		case tar.TypeDir:
 			if _, err := os.Stat(target); err != nil {
 				if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 			}
 
@@ -240,24 +238,24 @@ func Extract(reader io.Reader) ([]string, error) {
 		case tar.TypeReg:
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// copy over contents
 			if _, err := io.Copy(f, tr); err != nil {
 				f.Close()
-				return nil, err
+				return nil, nil, err
 			}
 
 			// manually close here after each file operation; defering would cause each file close
 			// to wait until all operations have completed.
 			f.Close()
 			if err = os.Chtimes(target, time.Now(), header.FileInfo().ModTime()); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			if err = os.Chmod(target, header.FileInfo().Mode()); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			manifest = append(manifest, target)
@@ -268,19 +266,30 @@ func Extract(reader io.Reader) ([]string, error) {
 			source := filepath.ToSlash(header.Linkname)
 
 			if source[0] == '/' {
-				return nil, fmt.Errorf("invalid path: symlink with absolute path: %s -> %s", dest, source)
+				err = fmt.Errorf("invalid path: symlink with absolute path: %s -> %s", dest, source)
+
+				if !options.AllowAbsolutePaths {
+					return nil, nil, err
+				} else {
+					warnings = append(warnings, fmt.Sprintf("%v", err))
+				}
 			}
 
 			dir := filepath.Dir(dest)
 			resolvedTarget := filepath.Join(dir, source)
 
 			if !strings.HasPrefix(resolvedTarget, cwd) {
-				return nil, fmt.Errorf("invalid path: %s -> %s points outside cwd", reldest, source)
+				err = fmt.Errorf("invalid path: %s -> %s points outside cwd", reldest, source)
+				if !options.AllowLinksOutsideCwd {
+					return nil, nil, err
+				} else {
+					warnings = append(warnings, fmt.Sprintf("%v", err))
+				}
 			}
 
 			err = syncSymLink(source, dest)
 			if err != nil {
-				return nil, fmt.Errorf("syncing symlink failed: %v", err)
+				return nil, nil, fmt.Errorf("syncing symlink failed: %v", err)
 			}
 
 			// symlink timestamps are not preserved
@@ -288,11 +297,11 @@ func Extract(reader io.Reader) ([]string, error) {
 			manifest = append(manifest, target)
 
 		default:
-			return nil, fmt.Errorf("unsupported file type: %+v", header)
+			return nil, nil, fmt.Errorf("unsupported file type: %+v", header)
 		}
 
 	}
-	return manifest, nil
+	return manifest, warnings, nil
 }
 
 type FileType int
