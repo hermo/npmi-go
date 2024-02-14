@@ -153,22 +153,6 @@ func (bp *badpath) IsBad(path string) bool {
 		return true
 	}
 
-	path = strings.ToUpper(path)
-	windowsDevices := []string{"CON", "PRN", "AUX", "NUL"}
-	for _, s := range windowsDevices {
-		if path == s {
-			return true
-		}
-	}
-
-	windowsDevicePrefixes := []string{"COM", "LPT"}
-	for _, s := range windowsDevicePrefixes {
-		if strings.HasPrefix(path, s) && len(path) > 3 {
-			if path[3] >= '1' && path[3] <= '9' {
-				return true
-			}
-		}
-	}
 	return false
 }
 

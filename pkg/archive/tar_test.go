@@ -172,9 +172,6 @@ func Test_ExtractFilesEvil(t *testing.T) {
 		{"/evil.txt", "evil", tar.TypeReg},
 		{"C:/Users/Public/evil.txt", "evil", tar.TypeReg},
 		{"C:|Users/Public/evil.txt", "evil", tar.TypeReg},
-		{"COM1>", "evil", tar.TypeReg},
-		{"CON", "evil", tar.TypeReg},
-		{"NUL", "evil", tar.TypeReg},
 		{"C:\\Users\\Public\\evil2.txt", "evil2", tar.TypeReg},
 		{"abs_link", "/etc/passwd", tar.TypeSymlink},
 		{"outside_link", "../outside_cwd", tar.TypeSymlink},
@@ -262,9 +259,6 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true, 0},
 		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true, 0},
 		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true, 0},
-		{"evil_win_dev_1.txt", "COM1>", true, 0},
-		{"evil_win_dev_2.txt", "CON", true, 0},
-		{"evil_win_dev_3.txt", "NUL", true, 0},
 	}
 
 	for _, tt := range tests {
