@@ -13,8 +13,13 @@ import (
 	"github.com/klauspost/pgzip"
 )
 
+type TarOptions struct {
+	AllowAbsolutePaths  bool
+	AllowDoubleDotPaths bool
+}
+
 // Create an archive file containing the contents of directory src
-func Create(filename string, src string) (warnings []string, err error) {
+func Create(filename string, src string, options *TarOptions) (warnings []string, err error) {
 	f, err := os.Create(filename)
 	if err != nil {
 		return nil, err
@@ -31,7 +36,7 @@ func Create(filename string, src string) (warnings []string, err error) {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
-	badPath := NewBadPath(true)
+	badPath := NewBadPath(options.AllowDoubleDotPaths, options.AllowAbsolutePaths)
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -177,7 +182,7 @@ func Extract(reader io.Reader) ([]string, error) {
 
 	tr := tar.NewReader(gzr)
 
-	badPath := NewBadPath(false)
+	badPath := NewBadPath(false, false)
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {

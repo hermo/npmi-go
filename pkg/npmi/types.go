@@ -57,14 +57,16 @@ type LocalCacheOptions struct {
 
 // Options describes the runtime configuration
 type Options struct {
-	Verbose         bool `env:"NPMI_VERBOSE"`
-	Force           bool `env:"NPMI_FORCE"`
-	LocalCache      *LocalCacheOptions
-	LogLevel        LogLevel `env:"NPMI_LOGLEVEL"`
-	MinioCache      *MinioCacheOptions
-	PrecacheCommand string `env:"NPMI_PRECACHE"`
-	TempDir         string `env:"NPMI_TEMP_DIR"`
-	UseLocalCache   bool   `env:"NPMI_LOCAL"`
-	UseMinioCache   bool   `env:"NPMI_MINIO"`
-	Json            bool   `env:"NPMI_JSON"`
+	Verbose             bool `env:"NPMI_VERBOSE"`
+	Force               bool `env:"NPMI_FORCE"`
+	LocalCache          *LocalCacheOptions
+	LogLevel            LogLevel `env:"NPMI_LOGLEVEL"`
+	MinioCache          *MinioCacheOptions
+	PrecacheCommand     string `env:"NPMI_PRECACHE"`
+	TempDir             string `env:"NPMI_TEMP_DIR"`
+	UseLocalCache       bool   `env:"NPMI_LOCAL"`
+	UseMinioCache       bool   `env:"NPMI_MINIO"`
+	Json                bool   `env:"NPMI_JSON"`
+	AllowDoubleDotPaths bool   `env:"NPMI_ALLOW_DOUBLE_DOT_PATHS"`
+	AllowAbsolutePaths  bool   `env:"NPMI_ALLOW_ABSOLUTE_PATHS"`
 }

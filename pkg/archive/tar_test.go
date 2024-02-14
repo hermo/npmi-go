@@ -288,7 +288,11 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 				t.Fatalf("Can't create test symlink: %v", err)
 			}
 
-			warnings, err := Create("temp.tgz", ".")
+			options := TarOptions{
+				AllowAbsolutePaths:  false,
+				AllowDoubleDotPaths: false,
+			}
+			warnings, err := Create("temp.tgz", ".", &options)
 
 			if len(warnings) != tt.WarningCount {
 				t.Errorf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
@@ -546,8 +550,13 @@ func BenchmarkCreate(b *testing.B) {
 	}
 	f.Close()
 
+	options := TarOptions{
+		AllowAbsolutePaths:  false,
+		AllowDoubleDotPaths: false,
+	}
+
 	for i := 0; i < b.N; i++ {
-		warnings, err := Create("compressed.tgz", "node_modules")
+		warnings, err := Create("compressed.tgz", "node_modules", &options)
 		if err != nil {
 			b.Fatalf("Create failed: %v", err)
 		}
