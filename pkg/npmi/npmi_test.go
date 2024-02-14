@@ -88,9 +88,10 @@ func TestNpmiCanBeRun(t *testing.T) {
 		LocalCache: &LocalCacheOptions{
 			Dir: testDataCacheDir,
 		},
-		UseLocalCache:       true,
-		AllowDoubleDotPaths: true,
-		AllowAbsolutePaths:  true,
+		UseLocalCache:      true,
+		TarDoubleDotPaths:  true,
+		TarAbsolutePaths:   true,
+		TarLinksOutsideCwd: true,
 	}
 	builder := NewConfigBuilder()
 	runner := &cmd.SpyRunner{

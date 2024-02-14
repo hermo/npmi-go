@@ -200,8 +200,9 @@ func (m *main) createArchive(cacheKey string) (archiveFilename string, err error
 	log.Debug("Creating archive", "path", archivePath)
 
 	tarOptions := archive.TarOptions{
-		AllowAbsolutePaths:  m.options.AllowAbsolutePaths,
-		AllowDoubleDotPaths: m.options.AllowDoubleDotPaths,
+		AllowAbsolutePaths:   m.options.TarAbsolutePaths,
+		AllowDoubleDotPaths:  m.options.TarDoubleDotPaths,
+		AllowLinksOutsideCwd: m.options.TarLinksOutsideCwd,
 	}
 	warnings, err := archive.Create(archivePath, m.modulesDirectory, &tarOptions)
 	if err != nil {

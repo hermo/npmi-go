@@ -250,6 +250,89 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 		{"hello_subdir_1.txt", "subdir/hello.txt", false, 1},
 		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false, 1},
 		{"subdir/hello_parent_1.txt", "../hello.txt", false, 1},
+		// Evil cases that are allowed by default for compatibility 🤦‍♂️
+		{"abs_1.txt", "/hello.txt", false, 1},
+		{"abs_2.txt", "/etc/passwd", false, 0},
+		{"subdir/evil_parent_0.txt", "../../hello.txt", false, 1},
+		{"evil_parent_1.txt", "../evil.txt", false, 1},
+		{"evil_parent_2.txt", "./../evil.txt", false, 1},
+		// Still evil
+		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true, 0},
+		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true, 0},
+		{"evil_abs_win_3.txt", "C:\\Users\\Public\\evil2.txt", true, 0},
+	}
+
+	for _, tt := range tests {
+		var testType string
+		if tt.IsEvil {
+			testType = "EVIL"
+		} else {
+			testType = "NORMAL"
+		}
+		testName := fmt.Sprintf("%s/%s", testType, tt.Source)
+
+		t.Run(testName, func(t *testing.T) {
+			testDir, err := prepareTestDir()
+			if err != nil {
+				t.Fatalf("Can't create temporary test directory: %v", err)
+			}
+
+			defer removeTestDir(testDir)
+
+			err = os.Mkdir("subdir", 0750)
+			if err != nil {
+				t.Fatalf("Can't create test subdir: %v", err)
+			}
+
+			err = os.Symlink(tt.Target, tt.Source)
+			if err != nil {
+				t.Fatalf("Can't create test symlink: %v", err)
+			}
+
+			options := TarOptions{
+				AllowAbsolutePaths:   true,
+				AllowDoubleDotPaths:  true,
+				AllowLinksOutsideCwd: true,
+			}
+			warnings, err := Create("temp.tgz", ".", &options)
+
+			if len(warnings) != tt.WarningCount {
+				t.Errorf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
+			}
+
+			if tt.IsEvil {
+				if err == nil {
+					t.Fatalf("Evil symlink (%s -> %s) should have failed but did not\n", tt.Source, tt.Target)
+				} else {
+					if !strings.Contains(err.Error(), "invalid path") {
+						t.Fatalf("Unexpected error when creating evil symlink (%s -> %s): %v", tt.Source, tt.Target, err)
+					}
+				}
+			} else {
+				if err != nil {
+					if strings.Contains(err.Error(), "invalid path") {
+						t.Fatalf("Normal symlink (%s -> %s) failed: %v", tt.Source, tt.Target, err)
+					} else {
+						t.Fatalf("Unexpected error when creating normal symlink (%s -> %s): %v", tt.Source, tt.Target, err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func Test_CreateArchive_DisallowSymlinksOutsideCwd(t *testing.T) {
+	tests := []struct {
+		Source       string
+		Target       string
+		IsEvil       bool
+		WarningCount int
+	}{
+		// Normal cases
+		{"hello2.txt", "hello.txt", false, 1},
+		{"hello_subdir_1.txt", "subdir/hello.txt", false, 1},
+		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false, 1},
+		{"subdir/hello_parent_1.txt", "../hello.txt", false, 1},
 		// Evil cases
 		{"subdir/evil_parent_0.txt", "../../hello.txt", true, 0},
 		{"evil_parent_1.txt", "../evil.txt", true, 0},
@@ -289,8 +372,9 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 			}
 
 			options := TarOptions{
-				AllowAbsolutePaths:  false,
-				AllowDoubleDotPaths: true,
+				AllowAbsolutePaths:   false,
+				AllowDoubleDotPaths:  true,
+				AllowLinksOutsideCwd: false,
 			}
 			warnings, err := Create("temp.tgz", ".", &options)
 

@@ -14,8 +14,9 @@ import (
 )
 
 type TarOptions struct {
-	AllowAbsolutePaths  bool
-	AllowDoubleDotPaths bool
+	AllowAbsolutePaths   bool
+	AllowDoubleDotPaths  bool
+	AllowLinksOutsideCwd bool
 }
 
 // Create an archive file containing the contents of directory src
@@ -66,16 +67,26 @@ func Create(filename string, src string, options *TarOptions) (warnings []string
 			}
 
 			pathDir := filepath.Dir(path)
-			linkFull := filepath.Join(wd, pathDir, link)
-
-			//			fmt.Printf("LINK: src %s (D %s) -> tgt %s (%s)\n", path, pathDir, link, linkFull)
 
 			if badPath.IsBad(link) {
 				return fmt.Errorf("invalid path: contains bad characters: %s", link)
 			}
 
+			var linkFull string
+
+			if filepath.IsAbs(link) {
+				linkFull = link
+			} else {
+				linkFull = filepath.Join(wd, pathDir, link)
+			}
+
 			if strings.Index(linkFull, wd) != 0 {
-				return fmt.Errorf("invalid path: symlink points outside current directory: %s -> %s", path, link)
+				err := fmt.Errorf("invalid path: symlink points outside working directory: %s -> %s", path, link)
+				if !options.AllowLinksOutsideCwd {
+					return err
+				} else {
+					warnings = append(warnings, fmt.Sprintf("%v", err))
+				}
 			}
 
 			_, err := os.Stat(linkFull)
