@@ -11,9 +11,16 @@ The cache key is something like
 
 ![Diagram describing how npmi-go works](npmi-go.svg)
 
-# Not for production (yet)
+# pre-1.0 software
 
-Note that npmi-go is work-in-progress and should not be used in production.
+Note that npmi-go is still pre-1.0, which means that breaking changes MAY be present in point releases if unavoidable.
+
+# Signing keys
+
+The artifacts are signed using both minisign and GPG for convenience.
+
+- [minisign.pub](minisign.pub)
+- [gpg.asc](gpg.asc)
 
 # Installation
 
