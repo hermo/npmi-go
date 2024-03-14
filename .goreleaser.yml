@@ -42,11 +42,22 @@ archives:
 report_sizes: true
 
 signs:
-  - signature: "${artifact}.minisig"
+  - id: minisign
+    signature: "${artifact}.minisig"
     cmd: "sh"
     args:
       - "-c"
       - "minisign -s /mnt/st/npmi-go.sec -Sm ${artifact} < /mnt/st/npmi-go.pass"
+    artifacts: all
+  - id: gpg
+    cmd: gpg
+    args:
+      - "-b"
+      - "-u"
+      - "6EC0B01FE03C53FA44E86D930A63E5AB0A045A2D"
+      - "-o"
+      - "${signature}"
+      - "${artifact}"
     artifacts: all
 
 nfpms:
