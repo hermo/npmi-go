@@ -274,11 +274,11 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 		{"hello_subdir_2.txt", "subdir/.foo/hello.txt", false, 1},
 		{"subdir/hello_parent_1.txt", "../hello.txt", false, 1},
 		// Evil cases that are allowed by default for compatibility 🤦‍♂️
-		{"abs_1.txt", "/hello.txt", false, 1},
-		{"abs_2.txt", "/etc/passwd", false, 0},
-		{"subdir/evil_parent_0.txt", "../../hello.txt", false, 1},
-		{"evil_parent_1.txt", "../evil.txt", false, 1},
-		{"evil_parent_2.txt", "./../evil.txt", false, 1},
+		{"abs_1.txt", "/hello.txt", false, 2},
+		{"abs_2.txt", "/etc/passwd", false, 1},
+		{"subdir/evil_parent_0.txt", "../../hello.txt", false, 2},
+		{"evil_parent_1.txt", "../evil.txt", false, 2},
+		{"evil_parent_2.txt", "./../evil.txt", false, 2},
 		// Still evil
 		{"evil_abs_win_1.txt", "C:/Users/Public/evil.txt", true, 0},
 		{"evil_abs_win_2.txt", "C:|Users/Public/evil.txt", true, 0},
@@ -320,7 +320,8 @@ func Test_CreateArchiveSymlinks(t *testing.T) {
 			warnings, err := Create("temp.tgz", ".", &options)
 
 			if len(warnings) != tt.WarningCount {
-				t.Errorf("Expected %d warnings, got only %d", tt.WarningCount, len(warnings))
+				t.Errorf("Expected %d warnings, got %d", tt.WarningCount, len(warnings))
+				fmt.Printf("[%s] Warnings: %v\n", testName, warnings)
 			}
 
 			if tt.IsEvil {
