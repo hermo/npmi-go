@@ -1,4 +1,5 @@
 ---
+version: 2
 before:
   hooks:
     - go mod download
@@ -47,7 +48,7 @@ signs:
     cmd: "sh"
     args:
       - "-c"
-      - "minisign -s /mnt/st/npmi-go.sec -Sm ${artifact} < /mnt/st/npmi-go.pass"
+      - "minisign -s /dev/shm/npmi-go.sec -Sm ${artifact} < /dev/shm/npmi-go.pass"
     artifacts: all
   - id: gpg
     cmd: gpg
