@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -145,5 +146,74 @@ func cleanCacheDir(t *testing.T, cacheDir string) {
 		if err := os.Remove(file); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// TestNpmBehaviorThroughWrapper makes sure that npm behaves as expected when
+// run through the wrapper, especially NODE_ENV handling.
+func TestNpmBehaviorThroughWrapper(t *testing.T) {
+	tests := []struct {
+		name           string
+		nodeEnv        string
+		wantCapitalize bool
+	}{
+		{"production_mode", "production", false},
+		{"development_mode", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Get project root path
+			_, filename, _, _ := runtime.Caller(0)
+			testFilePath := filepath.Dir(filename)
+			testDataDir := filepath.Join(testFilePath, "../../testdata")
+
+			// Verify testdata exists
+			if !files.DirectoryExists(testDataDir) {
+				t.Fatalf("testdata directory not found at: %s", testDataDir)
+			}
+
+			// Setup environment
+			origEnv := os.Getenv("NODE_ENV")
+			os.Setenv("NODE_ENV", tt.nodeEnv)
+			defer os.Setenv("NODE_ENV", origEnv)
+
+			// Change to testdata directory
+			err := os.Chdir(testDataDir)
+			if err != nil {
+				t.Fatalf("could not chdir to testdata: %v (verified path: %s)", err, testDataDir)
+			}
+
+			// Clean up node_modules
+			os.RemoveAll("node_modules")
+			defer os.RemoveAll("node_modules")
+
+			// Build config with real binaries from PATH
+			builder := NewConfigBuilder()
+			builder.WithNodeAndNpmFromPath()
+			config, err := builder.Build()
+			if err != nil {
+				t.Fatalf("Build failed: %v", err)
+			}
+
+			// Create and run installer
+			installer := NewNpmInstaller(config, hclog.NewNullLogger())
+			_, _, err = installer.Run()
+			if err != nil {
+				t.Fatalf("Run failed: %v", err)
+			}
+
+			// Verify dependencies
+			checkDependency(t, "capitalize", tt.wantCapitalize)
+			checkDependency(t, "left-pad", true)
+			checkDependency(t, "uuid", true)
+		})
+	}
+}
+
+func checkDependency(t *testing.T, pkg string, want bool) {
+	exists := files.DirectoryExists(filepath.Join("node_modules", pkg))
+	if exists != want {
+		t.Errorf("Dependency %s exists = %v, want %v", pkg, exists, want)
 	}
 }
