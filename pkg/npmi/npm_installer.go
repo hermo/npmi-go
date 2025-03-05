@@ -7,7 +7,6 @@ import (
 
 type NpmInstaller struct {
 	npmBinary      string
-	productionMode bool
 	runner         cmd.Runner
 	log            hclog.Logger
 }
@@ -15,7 +14,6 @@ type NpmInstaller struct {
 func NewNpmInstaller(config *Config, log hclog.Logger) *NpmInstaller {
 	return &NpmInstaller{
 		npmBinary:      config.npmBinary,
-		productionMode: config.productionMode,
 		runner:         config.runner,
 		log:            log,
 	}
@@ -23,12 +21,7 @@ func NewNpmInstaller(config *Config, log hclog.Logger) *NpmInstaller {
 
 // Run installs packages from NPM
 func (i *NpmInstaller) Run() (stdout string, stderr string, err error) {
-	var args []string
-	if i.productionMode {
-		args = []string{"ci", "--production", "--loglevel", "error", "--progress", "false"}
-	} else {
-		args = []string{"ci", "--dev", "--loglevel", "error", "--progress", "false"}
-	}
+	var args = []string{"ci", "--loglevel", "error", "--progress", "false"}
 
 	i.log.Trace("Running", "npmBinary", i.npmBinary, "args", args)
 	return i.runner.RunCommand(i.npmBinary, args...)

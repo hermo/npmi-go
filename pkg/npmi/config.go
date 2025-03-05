@@ -65,10 +65,11 @@ func (b *configBuilder) Build() (*Config, error) {
 		return nil, err
 	}
 	return &Config{
-		nodeBinary: b.nodeBinary,
-		npmBinary:  b.npmBinary,
-		runner:     b.runner,
-		Platform:   platform,
+		nodeBinary:     b.nodeBinary,
+		npmBinary:      b.npmBinary,
+		runner:         b.runner,
+		Platform:       platform,
+		productionMode: productionMode,
 	}, nil
 }
 
