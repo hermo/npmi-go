@@ -21,10 +21,11 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
     flags:
       - -trimpath
-    ldflags: >-
-      -s -w -X github.com/hermo/npmi-go/pkg/npmi.Version={{.Version}}
-      -X github.com/hermo/npmi-go/pkg/npmi.Commit={{.Commit}}
-      -X github.com/hermo/npmi-go/pkg/npmi.CommitDate={{ .CommitDate }}
+    ldflags:
+      - >-
+        -s -w -X github.com/hermo/npmi-go/pkg/npmi.Version={{.Version}}
+        -X github.com/hermo/npmi-go/pkg/npmi.Commit={{.Commit}}
+        -X github.com/hermo/npmi-go/pkg/npmi.CommitDate={{ .CommitDate }}
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
 changelog:
@@ -38,7 +39,8 @@ changelog:
       - go mod tidy
 archives:
   - id: tgz
-    format: tar.gz
+    formats: ['tar.gz']
+    wrap_in_directory: false
 
 report_sizes: true
 
@@ -70,30 +72,19 @@ nfpms:
     formats:
       - deb
       - rpm
+    dependencies: []
+
 brews:
   - repository:
       owner: hermo
       name: homebrew-npmi
-
     download_strategy: CurlDownloadStrategy
-
     commit_author:
       name: goreleaserbot
       email: mirko+goreleaser@mirko.fi
-
-    # The project name and current git tag are used in the format string.
-    #commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-
-    folder: Formula
+    directory: Formula
     caveats: "Note that npmi-go is work-in-progress and should not be used in production."
     homepage: "https://github.com/hermo/npmi-go"
     description: "npmi-go caches the contents of node_modules directory in a tarball stored locally or in a Minio instance"
     license: "MIT"
-
-    # Setting this will prevent goreleaser to actually try to commit the updated
-    # formula - instead, the formula file will be stored on the dist folder only,
-    # leaving the responsibility of publishing it to the user.
-    # If set to auto, the release will not be uploaded to the homebrew tap
-    # in case there is an indicator for prerelease in the tag e.g. v0.0.0-rc1
-    # Default is false.
     skip_upload: auto
