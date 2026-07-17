@@ -47,6 +47,11 @@ func (cache *localCache) Get(key string) (io.Reader, error) {
 	return os.Open(path)
 }
 
+// IsCacheMiss reports file-not-found errors as cache misses.
+func (cache *localCache) IsCacheMiss(err error) bool {
+	return os.IsNotExist(err)
+}
+
 // Put stores something in the cache
 func (cache *localCache) Put(key string, reader io.Reader) error {
 	log := cache.log.Named("put")
@@ -55,7 +60,7 @@ func (cache *localCache) Put(key string, reader io.Reader) error {
 	f, err := os.Create(path)
 	if err != nil {
 		log.Error("create failed", "error", err)
-		return nil
+		return err
 	}
 
 	defer f.Close()

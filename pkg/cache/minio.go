@@ -11,6 +11,8 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
+const maxSinglePutObjectSize = int64(5 * 1024 * 1024 * 1024)
+
 // minioCache represents a Minio Cache instance
 type minioCache struct {
 	client          *minio.Client
@@ -78,9 +80,27 @@ func (cache *minioCache) Has(key string) (bool, error) {
 func (cache *minioCache) Put(key string, reader io.Reader) error {
 	log := cache.log.Named("put")
 	log.Trace("start", "key", key)
+
+	size := int64(-1)
+	if seeker, ok := reader.(io.Seeker); ok {
+		current, err := seeker.Seek(0, io.SeekCurrent)
+		if err == nil {
+			end, err := seeker.Seek(0, io.SeekEnd)
+			if err == nil {
+				size = end - current
+			}
+			_, _ = seeker.Seek(current, io.SeekStart)
+		}
+	}
+
+	options := minio.PutObjectOptions{ContentType: "application/octet-stream"}
+	if size >= 0 && size <= maxSinglePutObjectSize {
+		// Prefer single PUT for known small/medium objects to avoid multipart edge cases in some S3-compatible backends.
+		options.DisableMultipart = true
+	}
+
 	_, err := cache.client.PutObject(
-		context.Background(), cache.bucket, key, reader, -1,
-		minio.PutObjectOptions{ContentType: "application/octet-stream"})
+		context.Background(), cache.bucket, key, reader, size, options)
 
 	if err != nil {
 		log.Error("failed", "error", err)
@@ -95,6 +115,12 @@ func (cache *minioCache) Get(key string) (io.Reader, error) {
 	log := cache.log.Named("put")
 	log.Trace("start", "key", key)
 	return cache.client.GetObject(context.Background(), cache.bucket, key, minio.GetObjectOptions{})
+}
+
+// IsCacheMiss maps MinIO/S3 not-found responses to cache misses.
+func (cache *minioCache) IsCacheMiss(err error) bool {
+	response := minio.ToErrorResponse(err)
+	return response.Code == "NoSuchKey" || response.Code == "NotFound" || response.StatusCode == http.StatusNotFound
 }
 
 func (cache *minioCache) String() string {

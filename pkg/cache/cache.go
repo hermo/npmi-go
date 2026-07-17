@@ -14,6 +14,12 @@ type Cacher interface {
 	Get(key string) (io.Reader, error)
 }
 
+// CacheMissClassifier allows cache backends to classify backend-specific
+// errors as a cache miss.
+type CacheMissClassifier interface {
+	IsCacheMiss(err error) bool
+}
+
 func CreateKey(platformKey string, lockFileHash string, precacheCommand string) (string, error) {
 	cacheKey := fmt.Sprintf("%s-%s", platformKey, lockFileHash)
 	if precacheCommand == "" {
