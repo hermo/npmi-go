@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ type TarOptions struct {
 	AllowAbsolutePaths   bool
 	AllowDoubleDotPaths  bool
 	AllowLinksOutsideCwd bool
+	ExtractConcurrency   int
 }
 
 // Create an archive file containing the contents of directory src
@@ -183,13 +186,23 @@ func Extract(reader io.Reader, options *TarOptions) (manifest []string, warnings
 		return nil, nil, err
 	}
 
-	gzr, err := pgzip.NewReaderN(reader, 500e3, 50)
+	extractConcurrency := runtime.GOMAXPROCS(0)
+	if options != nil && options.ExtractConcurrency > 0 {
+		extractConcurrency = options.ExtractConcurrency
+	}
+
+	gzr, err := pgzip.NewReaderN(reader, 500e3, extractConcurrency)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer gzr.Close()
 
 	tr := tar.NewReader(gzr)
+	type dirMtime struct {
+		target  string
+		modTime time.Time
+	}
+	var dirMtimes []dirMtime
 
 	badPath := NewBadPath(false, false)
 	for {
@@ -227,12 +240,8 @@ func Extract(reader io.Reader, options *TarOptions) (manifest []string, warnings
 				}
 			}
 
-			// Defer setting directory mtimes as they are bound to change when files are written to them
-			defer func() {
-				if err := os.Chtimes(target, time.Now(), header.FileInfo().ModTime()); err != nil {
-					fmt.Fprintf(os.Stderr, "Error: Could not restore mtime for directory %s: %v", target, err)
-				}
-			}()
+			// Restore directory mtimes after extraction; writes to children update parent mtimes.
+			dirMtimes = append(dirMtimes, dirMtime{target: target, modTime: header.FileInfo().ModTime()})
 
 		// if it's a file create it
 		case tar.TypeReg:
@@ -301,6 +310,13 @@ func Extract(reader io.Reader, options *TarOptions) (manifest []string, warnings
 		}
 
 	}
+
+	for _, dirMtime := range slices.Backward(dirMtimes) {
+		if err := os.Chtimes(dirMtime.target, time.Now(), dirMtime.modTime); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: Could not restore mtime for directory %s: %v", dirMtime.target, err)
+		}
+	}
+
 	return manifest, warnings, nil
 }
 

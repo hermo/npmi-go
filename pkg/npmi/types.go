@@ -70,4 +70,5 @@ type Options struct {
 	TarDoubleDotPaths  bool   `env:"NPMI_TAR_DOUBLE_DOT_PATHS"`
 	TarAbsolutePaths   bool   `env:"NPMI_TAR_ABSOLUTE_PATHS"`
 	TarLinksOutsideCwd bool   `env:"NPMI_TAR_LINKS_OUTSIDE_CWD"`
+	TarExtractThreads  int    `env:"NPMI_TAR_EXTRACT_THREADS"`
 }
