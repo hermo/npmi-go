@@ -279,34 +279,22 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 	foundInCache = false
 	for _, cache := range m.caches {
 		cLog := log.Named(fmt.Sprint(cache))
-		lookupLog := cLog.Named("lookup")
-		lookupLog.Trace("start")
-
-		foundInCache, err = cache.Has(cacheKey)
-		if err != nil {
-			lookupLog.Error("failed", "error", err)
-			return false, err
-		}
-
-		if !foundInCache {
-			lookupLog.Trace("complete")
-			lookupLog.Debug("cache MISS")
-			// Cache miss, continue with next cache
-			continue
-		}
-
-		lookupLog.Trace("complete")
-		lookupLog.Debug("cache HIT")
-
 		fetchLog := cLog.Named("fetch")
 
 		fetchLog.Trace("start")
 		foundArchive, err := cache.Get(cacheKey)
 		if err != nil {
+			if isCacheMiss(cache, err) {
+				fetchLog.Trace("complete")
+				fetchLog.Debug("cache MISS")
+				continue
+			}
 			fetchLog.Error("failed", "error", err)
 			return false, err
 		}
 		fetchLog.Trace("complete")
+		cLog.Debug("cache HIT")
+		foundInCache = true
 
 		if m.options.Force {
 			cLog.Debug("Force install requested, skipping Extraction")
@@ -326,6 +314,11 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 			log.Warn(warning)
 		}
 		if err != nil {
+			if isCacheMiss(cache, err) {
+				extractLog.Debug("cache MISS")
+				foundInCache = false
+				continue
+			}
 			extractLog.Error("failed", "error", err)
 			return false, err
 		}
@@ -349,6 +342,13 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 
 	log.Trace("complete")
 	return foundInCache, nil
+}
+
+func isCacheMiss(cacher cache.Cacher, err error) bool {
+	if classifier, ok := cacher.(cache.CacheMissClassifier); ok {
+		return classifier.IsCacheMiss(err)
+	}
+	return false
 }
 
 func initMinioCache(options *MinioCacheOptions, log hclog.Logger) (cache.Cacher, error) {
