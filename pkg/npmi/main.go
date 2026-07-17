@@ -320,6 +320,7 @@ func (m *main) tryToInstallFromCache(cacheKey string) (foundInCache bool, err er
 			AllowAbsolutePaths:   m.options.TarAbsolutePaths,
 			AllowDoubleDotPaths:  m.options.TarDoubleDotPaths,
 			AllowLinksOutsideCwd: m.options.TarLinksOutsideCwd,
+			ExtractConcurrency:   m.options.TarExtractThreads,
 		}
 		archiveManifest, warnings, err := archive.Extract(foundArchive, &tarOptions)
 		for _, warning := range warnings {
