@@ -3,17 +3,24 @@ package cache
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/hashicorp/go-hclog"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-// minioCache represents a Minio Cache instance
+const s3Region = "us-east-1"
+
+// minioCache represents an S3-backed cache that used to be implemented with Minio client
+// but Minio client was deprecated, so now this uses AWS SDK
 type minioCache struct {
-	client          *minio.Client
+	client          *s3.Client
 	endpoint        string
 	accessKeyID     string
 	secretAccessKey string
@@ -25,30 +32,66 @@ type minioCache struct {
 
 // NewMinioCache creates a new Minio Cache
 func NewMinioCache(endpoint string, accessKeyID string, secretAccessKey string, bucket string, useTLS bool, insecureTLS bool, log hclog.Logger) *minioCache {
-	return &minioCache{nil, endpoint, accessKeyID, secretAccessKey, useTLS, insecureTLS, bucket, log}
+	return &minioCache{
+		endpoint:        endpoint,
+		accessKeyID:     accessKeyID,
+		secretAccessKey: secretAccessKey,
+		useTLS:          useTLS,
+		insecureTLS:     insecureTLS,
+		bucket:          bucket,
+		log:             log,
+	}
 }
 
-// Dial connects to a Minio instance
+// Dial configures a client for the S3-compatible endpoint.
 func (cache *minioCache) Dial() error {
-	var transport http.RoundTripper
+	scheme := "http"
+	if cache.useTLS {
+		scheme = "https"
+	}
+
+	endpointURL, err := url.Parse(fmt.Sprintf("%s://%s", scheme, cache.endpoint))
+	if err != nil {
+		return fmt.Errorf("invalid S3 endpoint %q: %w", cache.endpoint, err)
+	}
+	if endpointURL.Host == "" || endpointURL.User != nil ||
+		(endpointURL.Path != "" && endpointURL.Path != "/") ||
+		endpointURL.RawQuery != "" || endpointURL.Fragment != "" {
+		return fmt.Errorf("invalid S3 endpoint %q", cache.endpoint)
+	}
+	endpointURL.Path = ""
+
+	var transport http.RoundTripper = http.DefaultTransport
 	if cache.insecureTLS {
 		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
-	} else {
-		transport = http.DefaultTransport
 	}
 
-	minioClient, err := minio.New(cache.endpoint, &minio.Options{
-		Creds:     credentials.NewStaticV4(cache.accessKeyID, cache.secretAccessKey, ""),
-		Secure:    cache.useTLS,
-		Transport: transport,
+	credentials := aws.NewCredentialsCache(aws.CredentialsProviderFunc(
+		func(context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     cache.accessKeyID,
+				SecretAccessKey: cache.secretAccessKey,
+				Source:          "npmi-go",
+			}, nil
+		},
+	))
+
+	cache.client = s3.New(s3.Options{
+		BaseEndpoint: aws.String(endpointURL.String()),
+		Credentials:  credentials,
+		HTTPClient: &http.Client{
+			Transport: transport,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Region:                     s3Region,
+		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
+		ResponseChecksumValidation: aws.ResponseChecksumValidationWhenRequired,
+		UsePathStyle:               true,
 	})
-
-	if err != nil {
-		return err
-	}
-	cache.client = minioClient
 
 	return nil
 }
@@ -57,44 +100,64 @@ func (cache *minioCache) Dial() error {
 func (cache *minioCache) Has(key string) (bool, error) {
 	log := cache.log.Named("has")
 	log.Trace("start", "key", key)
-	_, err := cache.client.StatObject(context.Background(), cache.bucket, key, minio.StatObjectOptions{})
+
+	_, err := cache.client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		Bucket: aws.String(cache.bucket),
+		Key:    aws.String(key),
+	})
 	if err != nil {
-		// Handle NoSuchKey error from Minio
-		if serr, ok := err.(minio.ErrorResponse); ok {
-			if serr.Code == "NoSuchKey" {
-				log.Trace("complete", "found", false)
-				return false, nil
-			}
+		var apiError interface{ ErrorCode() string }
+		if errors.As(err, &apiError) && (apiError.ErrorCode() == "NotFound" || apiError.ErrorCode() == "NoSuchKey") {
+			log.Trace("complete", "found", false)
+			return false, nil
 		}
 		log.Error("failed", "error", err)
 		return false, err
 	}
+
 	log.Trace("complete", "found", true)
 	return true, nil
 }
 
 // Put stores something in the cache
-// TODO: Test with inputs larger than 128 MiB
 func (cache *minioCache) Put(key string, reader io.Reader) error {
 	log := cache.log.Named("put")
 	log.Trace("start", "key", key)
-	_, err := cache.client.PutObject(
-		context.Background(), cache.bucket, key, reader, -1,
-		minio.PutObjectOptions{ContentType: "application/octet-stream"})
 
+	uploader := transfermanager.New(cache.client, func(options *transfermanager.Options) {
+		options.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+	})
+	_, err := uploader.UploadObject(context.Background(), &transfermanager.UploadObjectInput{
+		Body:        reader,
+		Bucket:      aws.String(cache.bucket),
+		ContentType: aws.String("application/octet-stream"),
+		Key:         aws.String(key),
+	})
 	if err != nil {
 		log.Error("failed", "error", err)
 		return err
 	}
+
 	log.Trace("complete")
 	return nil
 }
 
 // Get fetches something from the cache
 func (cache *minioCache) Get(key string) (io.Reader, error) {
-	log := cache.log.Named("put")
+	log := cache.log.Named("get")
 	log.Trace("start", "key", key)
-	return cache.client.GetObject(context.Background(), cache.bucket, key, minio.GetObjectOptions{})
+
+	output, err := cache.client.GetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: aws.String(cache.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		log.Error("failed", "error", err)
+		return nil, err
+	}
+
+	log.Trace("complete")
+	return output.Body, nil
 }
 
 func (cache *minioCache) String() string {
